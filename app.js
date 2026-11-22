@@ -29,7 +29,7 @@ window.visualViewport?.addEventListener('scroll',fitStage);
 function typeStyle(type,texture=false){return `--type:${TYPE_COLORS[type]||TYPE_COLORS.normal};${texture&&type!=='dragon'?`background-image:url('${asset('ui/back-'+type+'.png')}')`:''}`}
 function icon(type,cls='type-icon'){return `<img class="${cls}" src="${asset('ui/type-'+type+(type==='dragon'?'.webp':'.png'))}" alt="${esc(type)}">`}
 function orientations(os){return `<span class="effect-icons">${os.map(o=>`<img class="ori-icon" src="${asset('ui/'+o+'.png')}" alt="${esc(o)}">`).join('')}</span>`}
-function art(name,cls=''){const path=getPokemonBlock(name,battle?.chronicle??chronicleMode)?.pokemon.image||BUNDLED_POKEMON_ART[name];return `<img class="${cls} pokemon-card-image" src="${esc(asset(path))}" alt="${esc(name)} card" decoding="async">`}
+function art(name,cls=''){const path=getPokemonBlock(name,mode==='battle'&&battle?battle.chronicle:chronicleMode)?.pokemon.image||BUNDLED_POKEMON_ART[name];return `<img class="${cls} pokemon-card-image" src="${esc(asset(path))}" alt="${esc(name)} card" decoding="async">`}
 function btn(action,label,cls='small-btn',extra=''){return `<button class="${cls}" data-action="${action}" ${extra}>${label}</button>`}
 function rich(text){return esc(text).replace(/\{(st|hs|ba|do|s1|s2)\}/g,(_,o)=>({st:'Standing',hs:'Handstand',ba:'Back',do:'Down',s1:'Left',s2:'Right'}[o])).replace(/\{([RCLWGPFDMYN])\}/g,(_,t)=>({R:'Fire',C:'Normal',L:'Electric',W:'Water',G:'Grass',P:'Psychic',F:'Fighting',D:'Dark',M:'Steel',Y:'Flying',N:'Dragon'}[t]));}
 function costs(m){return `<span class="move-cost">${(m.energy||[]).map(t=>icon(t,'cost-icon')).join('')}</span>`}
