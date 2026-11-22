@@ -7,7 +7,31 @@ function isChronicleOnlyPokemon(name){return CHRONICLE_DB.order.includes(name)}
 function getPokemonBlock(name){return DATA.pokemon[name]||CHRONICLE_DB.pokemon[name]}
 function cleanMoveName(name){return name==null?name:String(name).replace(/[?？]/g,'').replace(/\s+/g,' ').trim()}
 function hydrateMove(m){if(!m)return m;const found=ALL_MOVES.find(x=>(m.code&&x.code===m.code)||x.image===m.image)||m;found.name=cleanMoveName(found.name);return found}
-function movesForPokemon(name,isEvolutionLoadout=false){const base=(DATA.pokemon[name]?.moves||[]).filter(m=>!m.chronicle);if(!chronicleMode)return base;let out=[...base,...(CHRONICLE_DB.movePools[name]||[])];if(!isEvolutionLoadout)out=out.filter(m=>m.action!=='devolve');return out}
+function legacyNameKey(name){return String(name||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase()}
+function legacySpeciesKey(name){return legacyNameKey(name).replace(/^(?:(?:normal|strong|legendary)\s+)+/,'').replace(/\s*\((?:normal|strong|legendary)\)$/,'')}
+function sharesLegacyMoves(pokemon,owner){
+ const target=legacyNameKey(pokemon),source=legacyNameKey(owner);
+ // Surfing Pikachu may borrow from any Pikachu version. The reverse
+ // permission is deliberately absent, including for other special forms.
+ if(source==='surfing pikachu')return target==='surfing pikachu';
+ if(target==='surfing pikachu')return /\bpikachu\b/.test(source);
+ return legacySpeciesKey(pokemon)===legacySpeciesKey(owner);
+}
+function movesForPokemon(name,isEvolutionLoadout=false){
+ const base=(DATA.pokemon[name]?.moves||[]).filter(m=>!m.chronicle);
+ if(!chronicleMode)return base;
+ const owners=[...new Set([name,...DATA.order,...Object.keys(CHRONICLE_DB.movePools)])].filter(owner=>sharesLegacyMoves(name,owner));
+ const seen=new Set(),out=[];
+ for(const owner of owners){
+  const pool=[...(DATA.pokemon[owner]?.moves||[]).filter(m=>!m.chronicle),...(CHRONICLE_DB.movePools[owner]||[])];
+  for(const move of pool){
+   const id=move.code||move.image||`${owner}|${move.name}`;
+   if(seen.has(id)||(!isEvolutionLoadout&&move.action==='devolve'))continue;
+   seen.add(id);out.push(move);
+  }
+ }
+ return out;
+}
 function hasTrigger(loadout){return (loadout?.moves||[]).map(hydrateMove).find(m=>m.action==='evolve')||null}
 function eeveeEvolutionTargets(p){return p.pokemon==='Eevee'?(hasTrigger(p)?.targets||[]):[]}
 function allowsEeveeAlternates(p){
@@ -177,7 +201,7 @@ function setupError(){
  }
  return '';
 }
-function isComplete(p){if(!chronicleMode)return DATA.order.includes(p.pokemon)&&p.moves.length===4&&p.moves.every(m=>!m.chronicle);syncEvolutionLoadouts(p);return isLoadoutComplete(p)&&(p.evolutionLoadouts||[]).every(isLoadoutComplete)}
+function isComplete(p){if(!chronicleMode)return DATA.order.includes(p.pokemon)&&p.moves.length===4&&p.moves.every(m=>{const card=hydrateMove(m);return !card.chronicle&&(!card.owner||card.owner===p.pokemon)});syncEvolutionLoadouts(p);return isLoadoutComplete(p)&&(p.evolutionLoadouts||[]).every(isLoadoutComplete)}
 function cur(){return players[active]}
 function freshFighter(p,i,format=battleFormat,chronicle=chronicleMode){
  const meta=POKEMON_META[p.pokemon]||{hp:120,type:'normal',weakness:''};
