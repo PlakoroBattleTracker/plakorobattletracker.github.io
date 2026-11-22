@@ -14,11 +14,11 @@ Saved battles and loadouts stay in the browser where they were created. Saves on
 
 ## Legacy move sharing
 
-Enable Chronicle during setup for Legacy rules. Normal, Strong, and Legendary versions of the same Pokémon share move cards in both directions. Pikachu can select Strong Pikachu cards, and Strong Pikachu can select Pikachu cards. Cards retain their original artwork, names, effects, and identifiers.
+Enable Chronicle during setup for Legacy rules. Pikachu (2026) and Pikachu (1997) are separate choices with their respective artwork and printed stats. Both share the Pikachu move pool in Legacy. Existing Legacy Pikachu saves retain the 1997 card, while modern saves retain the 2026 card. Normal, Strong, and Legendary versions of the same Pokémon share move cards in both directions. Pikachu can select Strong Pikachu cards, and Strong Pikachu can select Pikachu cards. Cards retain their original artwork, names, effects, and identifiers.
 
 Surfing Pikachu can use every other Pikachu version’s move cards, while Surfing Pikachu cards remain exclusive to Surfing Pikachu. Evolution stages remain separate, and Devolve remains restricted to evolution loadouts. Modern mode retains each Pokémon’s own modern move pool.
 
-Run `python3 build-site.py`, `node check-card-refresh.cjs`, `node check-legacy.cjs`, and `node check-league.mjs` to validate move sharing, form restrictions, saved loadouts, and shared-card battle effects.
+Run `python3 build-site.py`, `node check-card-refresh.cjs`, `node check-legacy.cjs`, `node check-pikachu-versions.cjs`, and `node check-league.mjs` to validate move sharing, form restrictions, saved loadouts, and shared-card battle effects.
 
 ## Hosting
 

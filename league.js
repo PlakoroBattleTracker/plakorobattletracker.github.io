@@ -81,7 +81,7 @@ function putLeagueOnField(out,incoming){
 function chooseLeagueReplacement(index){
  if(battle?.phase!=='leagueReplace')return;
  const r=nextLeagueReplacement();if(!r||!putLeagueOnField(r.out,index))return;
- addLog(`${battle.fighters[index].controllerLabel} replaces KO’d ${battle.fighters[r.out].pokemon} with ${battle.fighters[index].pokemon}.`);
+ addLog(`${battle.fighters[index].controllerLabel} replaces KO’d ${pokemonLabel(battle.fighters[r.out].pokemon)} with ${pokemonLabel(battle.fighters[index].pokemon)}.`);
  const next=nextLeagueReplacement();battle.league.replacement=next;
  if(!next){
   const cont=battle.league.continuation;delete battle.league.continuation;
@@ -101,7 +101,7 @@ function chooseLeagueSwitch(index){
  battle.snapshot=snapshotBattle();
  if(!putLeagueOnField(out,index))return;
  battle.league.switchUsedTurn=battle.turnNumber;battle.phase='leagueSwitchRoll';battle.selectedMove=null;battle.pending=null;battle.repeat=false;battle.chain=null;
- addLog(`${a.controllerLabel} uses SWITCH: ${a.pokemon} returns to the bench; ${battle.fighters[index].pokemon} enters with ${battle.fighters[index].hp} HP.`);
+ addLog(`${a.controllerLabel} uses SWITCH: ${pokemonLabel(a.pokemon)} returns to the bench; ${pokemonLabel(battle.fighters[index].pokemon)} enters with ${battle.fighters[index].hp} HP.`);
  saveBattle();render();
 }
 function resolveLeagueSwitch(orientation){
@@ -110,10 +110,10 @@ function resolveLeagueSwitch(orientation){
  if(orientation==='blocked'){if(!a.charBlocked)return;}else if(!valid.includes(orientation)||!orientationAllowed(a,[orientation]))return;
  if(orientation==='standing'){
   battle.phase='turn';if(!legalTargets().includes(battle.targetIndex))battle.targetIndex=null;
-  addLog(`${a.pokemon} rolled Standing after SWITCH and may attack.`);
+  addLog(`${pokemonLabel(a.pokemon)} rolled Standing after SWITCH and may attack.`);
   consumeSkippedTurn();
  }else{
-  addLog(`${a.pokemon}: SWITCH completed; ${orientation==='blocked'?'no Character Die':orientation} ends this turn.`);
+  addLog(`${pokemonLabel(a.pokemon)}: SWITCH completed; ${orientation==='blocked'?'no Character Die':orientation} ends this turn.`);
   // Next-turn offensive restrictions expire even when SWITCH grants no attack.
   a.energyMod=0;a.energySymbols=0;a.energyMultipliers={};a.chibiBlocked=false;a.attackMod=0;a.charBlocked=false;a.fixedOrientation=null;a.chooseOrientation=false;a.failureOrientations=[];a.bannedMoves=[];a.forcedMove=null;a.rerolls=0;a.rerollEnergy=0;
   if(a.skipTurns)a.skipTurns--;
@@ -125,7 +125,7 @@ function leagueExactSnapshot(){const s=clone(battle);s.snapshot=null;return s}
 function adjustLeagueHp(index,delta){
  const f=battle.fighters[index];if(!f)return;
  battle.snapshot=leagueExactSnapshot();const phase=battle.phase;
- f.hp=Math.max(0,Math.min(f.maxHp,f.hp+delta));f.ko=f.hp===0;addLog(`${f.pokemon}: HP adjusted to ${f.hp}.`);
+ f.hp=Math.max(0,Math.min(f.maxHp,f.hp+delta));f.ko=f.hp===0;addLog(`${pokemonLabel(f.pokemon)}: HP adjusted to ${f.hp}.`);
  if(!checkBattleWinner()){
   battle.winner=null;battle.winnerTeam=null;
   if(!queueLeagueReplacements({kind:'resume',phase})&&(phase==='winner'||battle.fighters[battle.turnIndex]?.ko))startControllerTurn(battle.activeController||'a');
@@ -136,7 +136,7 @@ function adjustLeagueHp(index,delta){
 /* The shared-device screens never render the other trainer's private choices. */
 function leaguePartyCard(i,action,extra=''){
  const p=players[i],s=leagueSetup.selected[leagueSetupController()],rank=s.indexOf(i),privatePick=leagueSetup.phase.startsWith('select-');
- return `<button class="league-card ${privatePick&&rank>=0?'selected':''}" data-action="${action}" data-index="${i}" ${action?'':'disabled'} aria-label="Party ${i%6+1}: ${esc(p.pokemon||'Choose Pokémon')}">${p.pokemon?art(p.pokemon):'<span class="empty-party">＋</span>'}<strong>${i%6+1}. ${esc(p.pokemon||'Choose Pokémon')}</strong><small>${privatePick&&rank>=0?`Pick ${rank+1} · ${rank<leagueFieldSize()?'Starts active':'Reserve'}`:extra||'3 Enekoro'}</small></button>`;
+ return `<button class="league-card ${privatePick&&rank>=0?'selected':''}" data-action="${action}" data-index="${i}" ${action?'':'disabled'} aria-label="Party ${i%6+1}: ${esc(pokemonLabel(p.pokemon)||'Choose Pokémon')}">${p.pokemon?art(p.pokemon):'<span class="empty-party">＋</span>'}<strong>${i%6+1}. ${esc(pokemonLabel(p.pokemon)||'Choose Pokémon')}</strong><small>${privatePick&&rank>=0?`Pick ${rank+1} · ${rank<leagueFieldSize()?'Starts active':'Reserve'}`:extra||'3 Enekoro'}</small></button>`;
 }
 function leagueSetupToolbar(){return toolbar(formatDefinition().label,btn('home','← Formats')+(leagueSetup.phase==='party'?btn('chronicle',chronicleMode?'Chronicle: ON':'Chronicle: OFF',`small-btn ${chronicleMode?'amber':''}`):''))}
 function renderLeagueSetup(){
@@ -149,17 +149,17 @@ function renderLeagueSetup(){
  return top+`<section class="league-handoff"><h1>Both teams are locked</h1><p>Choose who starts. Each trainer brings ${n} selected Pokémon; ${leagueFieldSize()} per trainer ${leagueFieldSize()===1?'starts':'start'} active.</p><div class="option-grid">${['a','b'].map((t,i)=>btn('start-first','Trainer '+t.toUpperCase()+' starts',`large-btn ${i?'blue':'pink'}`,`data-index="${i*n}" ${leagueSetupError()?'disabled':''}`)).join('')}</div>${btn('league-restart-selection','Choose teams again')}<small>Your private selections remain hidden until battle.</small></section>`;
 }
 function leagueBattleTools(){if(!isLeagueFormat(battle?.format))return '';const a=battle.fighters[battle.turnIndex];return `${a?`<span class="league-remaining">A ${leagueSurvivors('a').length} · B ${leagueSurvivors('b').length} left</span>`:''}${btn('league-party','Party','small-btn',a?'':'disabled')}${btn('league-switch','SWITCH','small-btn amber',canLeagueSwitch()?'':'disabled')}`}
-function leagueReserveButton(i,action){const f=battle.fighters[i];return btn(action,art(f.pokemon)+`<strong>${esc(f.pokemon)}</strong><small>${f.hp}/${f.maxHp} HP · 3 Enekoro${f.enekoroNotes?' · '+esc(f.enekoroNotes):''}</small>`,'evolution-option league-reserve',`data-index="${i}"`)}
+function leagueReserveButton(i,action){const f=battle.fighters[i];return btn(action,art(f.pokemon)+`<strong>${esc(pokemonLabel(f.pokemon))}</strong><small>${f.hp}/${f.maxHp} HP · 3 Enekoro${f.enekoroNotes?' · '+esc(f.enekoroNotes):''}</small>`,'evolution-option league-reserve',`data-index="${i}"`)}
 function renderLeagueBattlePrompt(){
  const phase=battle.phase;
  if(phase==='leagueSwitchRoll'){
-  const a=battle.fighters[battle.turnIndex];return `<section class="overlay league-roll"><header class="overlay-head"><h2>SWITCH · ${esc(a.pokemon)}</h2>${btn('undo','Undo switch','small-btn',battle.snapshot?'':'disabled')}</header><div class="scroll question"><div><img class="switch-card" src="${asset(LEAGUE_SWITCH.image)}" alt="SWITCH player move"><h2>Roll the incoming Pokémon’s Charakoro</h2><p>Standing allows an attack this turn. Any other result ends the turn.</p><div class="option-grid">${a.charBlocked?btn('league-switch-roll','No Character Die · Finish turn','large-btn','data-value="blocked"'):['standing','handstand','back','down','left','right'].map(o=>btn('league-switch-roll',orientations([o])+`<span>${o==='standing'?'Standing · Attack':o+' · Finish'}</span>`,'large-btn roll-choice',`data-value="${o}" ${orientationAllowed(a,[o])?'':'disabled'}`)).join('')}</div></div></div></section>`;
+  const a=battle.fighters[battle.turnIndex];return `<section class="overlay league-roll"><header class="overlay-head"><h2>SWITCH · ${esc(pokemonLabel(a.pokemon))}</h2>${btn('undo','Undo switch','small-btn',battle.snapshot?'':'disabled')}</header><div class="scroll question"><div><img class="switch-card" src="${asset(LEAGUE_SWITCH.image)}" alt="SWITCH player move"><h2>Roll the incoming Pokémon’s Charakoro</h2><p>Standing allows an attack this turn. Any other result ends the turn.</p><div class="option-grid">${a.charBlocked?btn('league-switch-roll','No Character Die · Finish turn','large-btn','data-value="blocked"'):['standing','handstand','back','down','left','right'].map(o=>btn('league-switch-roll',orientations([o])+`<span>${o==='standing'?'Standing · Attack':o+' · Finish'}</span>`,'large-btn roll-choice',`data-value="${o}" ${orientationAllowed(a,[o])?'':'disabled'}`)).join('')}</div></div></div></section>`;
  }
  const forced=phase==='leagueReplace',r=forced?nextLeagueReplacement():null,c=r?.controller||battle.activeController;
  return `<section class="overlay" role="dialog" aria-modal="true"><header class="overlay-head"><h2>${forced?'KO · Trainer '+c.toUpperCase()+' chooses a replacement':'SWITCH · Choose a reserve'}</h2>${forced?btn('undo','Undo last action','small-btn',battle.snapshot?'':'disabled'):btn('league-cancel-switch','Cancel')}</header><div class="scroll question"><div><p>${forced?'Send a healthy reserve into the open active position. This does not use SWITCH or consume a turn.':'Choose one of your selected reserves. Its HP, moves and evolution form are retained.'}</p><div class="option-grid">${leagueBench(c).map(i=>leagueReserveButton(i,forced?'league-replace':'league-switch-pick')).join('')}</div></div></div></section>`;
 }
 function renderLeagueParty(){
- const c=battle.activeController;return `<section class="overlay" role="dialog" aria-modal="true" aria-label="Your selected team"><header class="overlay-head"><h2>Trainer ${c.toUpperCase()} · Selected team</h2>${btn('close-menu','Close')}</header><div class="scroll"><div class="league-battle-party">${battle.fighters.map((f,i)=>({f,i})).filter(({f})=>f.controller===c).map(({f,i})=>`<article class="league-party-status ${f.ko?'ko':''}">${art(f.pokemon)}<h3>${esc(f.pokemon)}</h3><p>${f.hp}/${f.maxHp} HP · ${f.ko?'KO':fieldIndices().includes(i)?'Active':'Reserve'}</p><p>3 Enekoro${f.enekoroNotes?' · '+esc(f.enekoroNotes):''}</p><p>${f.moves.map(m=>esc(canonical(m).name)).join(' · ')}</p></article>`).join('')}</div></div></section>`;
+ const c=battle.activeController;return `<section class="overlay" role="dialog" aria-modal="true" aria-label="Your selected team"><header class="overlay-head"><h2>Trainer ${c.toUpperCase()} · Selected team</h2>${btn('close-menu','Close')}</header><div class="scroll"><div class="league-battle-party">${battle.fighters.map((f,i)=>({f,i})).filter(({f})=>f.controller===c).map(({f,i})=>`<article class="league-party-status ${f.ko?'ko':''}">${art(f.pokemon)}<h3>${esc(pokemonLabel(f.pokemon))}</h3><p>${f.hp}/${f.maxHp} HP · ${f.ko?'KO':fieldIndices().includes(i)?'Active':'Reserve'}</p><p>3 Enekoro${f.enekoroNotes?' · '+esc(f.enekoroNotes):''}</p><p>${f.moves.map(m=>esc(canonical(m).name)).join(' · ')}</p></article>`).join('')}</div></div></section>`;
 }
 function handleLeagueAction(action,index,value){
  if(!action.startsWith('league-'))return false;

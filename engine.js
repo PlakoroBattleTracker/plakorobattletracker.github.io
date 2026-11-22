@@ -28,7 +28,7 @@ function baseAttackDamage(a,t,m){
 function visibleDamage(a,t,m){return t.incomingSet!=null?t.incomingSet:Math.max(0,baseAttackDamage(a,t,m))*(t.incomingMultiplier||1)}
 function effectQuestion(r,title,detail,max,field,per=1,min=0){r.questions.push({kind:'count',title,detail,max,min,field,per})}
 function chibiQuestion(r,f,title,detail,max,field,per=1){
- if(f.chibiBlocked){r.questions.push({kind:'notice',title:'Chibi Characoro unavailable',detail:`${f.pokemon} cannot roll Chibi Characoro this turn. This roll contributes zero.`});return;}
+ if(f.chibiBlocked){r.questions.push({kind:'notice',title:'Chibi Characoro unavailable',detail:`${pokemonLabel(f.pokemon)} cannot roll Chibi Characoro this turn. This roll contributes zero.`});return;}
  effectQuestion(r,title,detail,max,field,per);
 }
 function buildOutcome(a,t,m,outcome=-1){
@@ -253,7 +253,7 @@ function adjustHp(index,delta){
  if(isLeagueFormat(battle?.format)){adjustLeagueHp(index,delta);return;}
  if(!battle)return;battle.snapshot=snapshotBattle();const f=battle.fighters[index];
  f.hp=Math.max(0,Math.min(f.maxHp,f.hp+delta));f.ko=f.hp===0;
- addLog(`${f.pokemon}: HP adjusted to ${f.hp}.`);
+ addLog(`${pokemonLabel(f.pokemon)}: HP adjusted to ${f.hp}.`);
  if(!checkBattleWinner()&&(battle.phase==='winner'||battle.fighters[battle.turnIndex]?.ko)){
   battle.winner=null;battle.winnerTeam=null;startControllerTurn(nextController(battle.activeController));
  }

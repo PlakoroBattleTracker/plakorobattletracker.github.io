@@ -94,11 +94,12 @@ def main():
             if hp < 30:
                 hp *= 10
             n = name(d['mon_name'])
-            characters[n] = dict(pokemon=dict(name=n, code=code, hp=hp,
+            choice = 'Pikachu (1997)' if n == 'Pikachu' else n
+            characters[choice] = dict(pokemon=dict(name=choice, species=n, code=code, hp=hp,
                 type=TYPES[int(d['type'])], weakness=TYPES[int(d['weakness'])] if d.get('weakness_visible', True) else '',
                 image='chronicle/' + code + '.png', source='1997', sourceUrl=item['url'], sourcePath=item['path']), moves=[])
     for n, block in characters.items():
-        block['moves'] = pools.get(n, [])
+        block['moves'] = pools.get(block['pokemon']['species'], [])
     chronicle = dict(order=[n for n in characters if n not in data['order']], pokemon=characters,
         movePools=pools, driveFolder=snapshot['driveFolder'],
         syncedSets=len({x['path'].split('/')[1] for x in snapshot['cards'] if x['path'].startswith('1997/')}),

@@ -21,7 +21,7 @@ const snapshot=JSON.parse(fs.readFileSync(path.join(__dirname,'chronicle-source.
 assert.equal(snapshot.cards.length,200);
 assert.equal(run('Object.keys(CHRONICLE_DB.pokemon).length'),15);
 assert.equal(run('Object.values(CHRONICLE_DB.movePools).flat().length'),184);
-assert.equal(run('allChronicleNames().length'),35);
+assert.equal(run('allChronicleNames().length'),36);
 assert.equal(run('CHRONICLE_DB.checked'),'2026-11-22');
 assert.equal(run('ALL_MOVES.filter(m=>/[?？]/.test(m.name)||/^RE/.test(m.code)).length'),0);
 for(const item of snapshot.cards){

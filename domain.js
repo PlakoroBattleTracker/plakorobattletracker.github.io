@@ -1,14 +1,16 @@
 const CHRONICLE_KEY='plakoro-chronicle-mode-v1';
+const POKEMON_CHOICES_VERSION=1;
 let chronicleMode=false;
 Object.entries(CHRONICLE_DB.pokemon).forEach(([n,b])=>{if(!DATA.pokemon[n])DATA.pokemon[n]=b});
 Object.entries(CHRONICLE_DB.pokemon).forEach(([n,b])=>{if(!POKEMON_META[n])POKEMON_META[n]={hp:b.pokemon.hp||120,type:b.pokemon.type||'normal',weakness:b.pokemon.weakness||''}});
 function allChronicleNames(){return Array.from(new Set([...DATA.order,...CHRONICLE_DB.order]))}
 function isChronicleOnlyPokemon(name){return CHRONICLE_DB.order.includes(name)}
+function pokemonLabel(name){return name==='Pikachu'?'Pikachu (2026)':name}
 function getPokemonBlock(name,legacy=chronicleMode){return (legacy?CHRONICLE_DB.pokemon[name]:null)||DATA.pokemon[name]||CHRONICLE_DB.pokemon[name]}
 function pokemonMeta(name,legacy=chronicleMode){return (legacy?CHRONICLE_DB.pokemon[name]?.pokemon:null)||POKEMON_META[name]||{hp:120,type:'normal',weakness:''}}
 function cleanMoveName(name){return name==null?name:String(name).replace(/[?？]/g,'').replace(/\s+/g,' ').trim()}
 function hydrateMove(m){if(!m)return m;const found=ALL_MOVES.find(x=>(m.code&&x.code===m.code)||x.image===m.image)||m;found.name=cleanMoveName(found.name);return found}
-function legacyNameKey(name){return String(name||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase()}
+function legacyNameKey(name){return String(name||'').normalize('NFKC').trim().replace(/\s+/g,' ').replace(/\s*\((?:1997|2026)\)$/,'').toLowerCase()}
 function legacySpeciesKey(name){return legacyNameKey(name).replace(/^(?:(?:normal|strong|legendary)\s+)+/,'').replace(/\s*\((?:normal|strong|legendary)\)$/,'')}
 function sharesLegacyMoves(pokemon,owner){
  const target=legacyNameKey(pokemon),source=legacyNameKey(owner);
@@ -154,12 +156,22 @@ function formatDefinition(format=battleFormat){return BATTLE_FORMATS[format]||BA
 function slotLabel(index,format=battleFormat){return formatDefinition(format).units[index]?.label||`Player ${index+1}`}
 function isRoyaleFormat(format=battleFormat){return format==='royale3'||format==='royale4'}
 function fighterLabel(f){return f?.label||`Player ${(f?.playerIndex||0)+1}`}
+function migrateLegacyPikachuSelection(p){
+ if(!p)return;
+ if(p.pokemon==='Pikachu')p.pokemon='Pikachu (1997)';
+ for(const l of [...(p.evolutionLoadouts||[]),...(p.loadouts||[])])migrateLegacyPikachuSelection(l);
+}
 function loadBuilds(){
  try{
   chronicleMode=localStorage.getItem(CHRONICLE_KEY)==='1';
   const saved=JSON.parse(localStorage.getItem(BUILD_KEY)||localStorage.getItem('plakoro-multiplayer-builds-v2')||'null');
   if(!saved||!Array.isArray(saved.players)||!saved.players.length)return;
   battleFormat=BATTLE_FORMATS[saved.battleFormat]?saved.battleFormat:inferFormat(saved.players.length);
+  // Before the choices were split, every saved Legacy Pikachu used the 1997 card.
+  if((saved.pokemonChoicesVersion||0)<POKEMON_CHOICES_VERSION){
+   if(chronicleMode)saved.players.forEach(migrateLegacyPikachuSelection);
+   for(const value of Object.values(saved.formatSetups||{}))if(value?.chronicleMode)value.players?.forEach(migrateLegacyPikachuSelection);
+  }
   for(const [key,value] of Object.entries(saved.formatSetups||{}))if(BATTLE_FORMATS[key]&&Array.isArray(value?.players))formatSetups[key]=value;
   const count=formatDefinition().units.length;
   players=Array.from({length:count},(_,i)=>cleanPlayer(saved.players[i]||emptyBuild()));
@@ -170,7 +182,7 @@ function loadBuilds(){
 
 function saveBuilds(){try{
  formatSetups[battleFormat]={players:players.map(cleanPlayer),active,chronicleMode,leagueSetup:isLeagueFormat()?clone(leagueSetup):undefined};
- localStorage.setItem(BUILD_KEY,JSON.stringify({players,active,battleFormat,formatSetups}));
+ localStorage.setItem(BUILD_KEY,JSON.stringify({pokemonChoicesVersion:POKEMON_CHOICES_VERSION,players,active,battleFormat,formatSetups}));
  localStorage.setItem(CHRONICLE_KEY,chronicleMode?'1':'0');
 }catch(e){}}
 function chooseBattleFormat(format,resume=false){
@@ -209,7 +221,7 @@ function freshFighter(p,i,format=battleFormat,chronicle=chronicleMode){
  const loads=[{pokemon:p.pokemon,moves:p.moves.map(hydrateMove)},...(chronicle?p.evolutionLoadouts||[]:[]).map(l=>({pokemon:l.pokemon,moves:l.moves.map(hydrateMove)}))];
  return {...formatDefinition(format).units[i],playerIndex:i,chronicle:!!chronicle,pokemon:p.pokemon,moves:p.moves.map(m=>hydrateMove({...m})),loadouts:loads,loadoutIndex:0,turnsTaken:0,baseEnergyDice:null,hp:meta.hp,maxHp:meta.hp,lastMove:null,lastMoveFailed:false,energyMod:0,charBlocked:false,incomingMod:0,incomingSet:null,bannedMoves:[],ko:false};
 }
-function makeBattleState(fighters,format,chronicle){return {format,chronicle,phase:'chooseFirst',fighters,activeController:null,lastActiveUnits:{},lastTargetIndex:null,turnIndex:null,turnNumber:0,targetIndex:null,selectedMove:null,log:[],winner:null,winnerTeam:null,repeat:false,snapshot:null}}
+function makeBattleState(fighters,format,chronicle){return {pokemonChoicesVersion:POKEMON_CHOICES_VERSION,format,chronicle,phase:'chooseFirst',fighters,activeController:null,lastActiveUnits:{},lastTargetIndex:null,turnIndex:null,turnNumber:0,targetIndex:null,selectedMove:null,log:[],winner:null,winnerTeam:null,repeat:false,snapshot:null}}
 
 function newBattle(){if(isLeagueFormat())return newLeagueBattle();if(setupError())return null;return makeBattleState(players.map((p,i)=>freshFighter(p,i)),battleFormat,chronicleMode)}
 function rematchBattle(){
@@ -258,7 +270,7 @@ function startControllerTurn(controller){
 function consumeSkippedTurn(){
  const f=battle.fighters[battle.turnIndex];if(!f?.skipTurns)return false;
  f.skipTurns--;f.energyMod=0;f.energySymbols=0;f.energyMultipliers={};f.chibiBlocked=false;f.attackMod=0;f.charBlocked=false;f.fixedOrientation=null;f.chooseOrientation=false;f.failureOrientations=[];f.bannedMoves=[];f.forcedMove=null;f.rerolls=0;f.rerollEnergy=0;
- addLog(`${fighterLabel(f)} · ${f.pokemon} skips this turn.`);finishFormatTurn(battle.turnIndex,battle.lastTargetIndex);return true;
+ addLog(`${fighterLabel(f)} · ${pokemonLabel(f.pokemon)} skips this turn.`);finishFormatTurn(battle.turnIndex,battle.lastTargetIndex);return true;
 }
 function finishFormatTurn(ai,ti){
  const f=battle.fighters[ai];f.turnsTaken++;
@@ -284,6 +296,11 @@ function battleWinnerLabel(){
 function saveBattle(){try{if(battle)localStorage.setItem(BATTLE_KEY,JSON.stringify(battle));else localStorage.removeItem(BATTLE_KEY)}catch(e){}}
 function normalizeBattleLoadouts(b){
  normalizeBattleFormat(b);
+ if((b.pokemonChoicesVersion||0)<POKEMON_CHOICES_VERSION){
+  for(const f of b.fighters||[])if(f.chronicle??b.chronicle)migrateLegacyPikachuSelection(f);
+  b.pokemonChoicesVersion=POKEMON_CHOICES_VERSION;
+ }
+ if(b.snapshot)normalizeBattleLoadouts(b.snapshot);
  for(const f of b.fighters||[]){f.lastMove=cleanMoveName(f.lastMove);f.bannedMoves=(f.bannedMoves||[]).map(cleanMoveName);f.moves=f.moves.map(hydrateMove);f.loadouts?.forEach(l=>l.moves=l.moves.map(hydrateMove));}
  for(const f of b.fighters||[]){
   const root=f.loadouts?.[0];if(root?.pokemon!=='Eevee')continue;
@@ -321,5 +338,5 @@ function applyChronicleTransition(f,m,chosenIndex){
  const n=f.loadouts[ni];f.loadoutIndex=ni;f.pokemon=n.pokemon;f.moves=n.moves.map(hydrateMove);
  const meta=fighterMeta(f);f.maxHp=m.maxHp||meta.hp||120;
  f.hp=Math.min(f.maxHp,f.hp);if(m.energyDice!=null)f.baseEnergyDice=m.energyDice;
- f.lastMove=null;f.bannedMoves=[];addLog(`${fighterLabel(f)} switched to ${f.pokemon} via ${m.name}.`);return true;
+ f.lastMove=null;f.bannedMoves=[];addLog(`${fighterLabel(f)} switched to ${pokemonLabel(f.pokemon)} via ${m.name}.`);return true;
 }
