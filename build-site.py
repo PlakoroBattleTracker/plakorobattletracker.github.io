@@ -19,10 +19,25 @@ def build():
     OUTPUT.mkdir()
     manifest = json.loads((ROOT / "asset-manifest.json").read_text())
     seen = set()
-    for archive in sorted(ROOT.glob("website-assets-*.zip")):
+    archives = sorted(ROOT.glob("website-assets-*.zip")) + sorted(ROOT.glob("card-update-assets-*.zip"))
+    # An update archive may replace a retained original image. Verify the final
+    # version of every path, and reject duplicate entries within one archive.
+    latest = {}
+    for archive in archives:
+        with zipfile.ZipFile(archive) as bundle:
+            names = bundle.namelist()
+            if len(names) != len(set(names)):
+                raise ValueError(f"Duplicate entry in {archive.name}")
+            for name in names:
+                if name in latest and not archive.name.startswith("card-update-assets-"):
+                    raise ValueError(f"Duplicate base asset: {name}")
+                latest[name] = archive
+    for archive in archives:
         with zipfile.ZipFile(archive) as bundle:
             for entry in bundle.infolist():
                 name = entry.filename
+                if latest[name] != archive:
+                    continue
                 if name not in manifest or name in seen:
                     raise ValueError(f"Unexpected or duplicate asset: {name}")
                 content = bundle.read(entry)

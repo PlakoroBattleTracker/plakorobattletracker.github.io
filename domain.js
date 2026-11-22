@@ -1,10 +1,11 @@
 const CHRONICLE_KEY='plakoro-chronicle-mode-v1';
 let chronicleMode=false;
 Object.entries(CHRONICLE_DB.pokemon).forEach(([n,b])=>{if(!DATA.pokemon[n])DATA.pokemon[n]=b});
-Object.entries(CHRONICLE_DB.pokemon).forEach(([n,b])=>{if(!POKEMON_META[n]){const map={Charmeleon:{hp:120,type:'fire',weakness:''},Charizard:{hp:120,type:'fire',weakness:''},Flareon:{hp:120,type:'fire',weakness:'water'},Jolteon:{hp:120,type:'lightning',weakness:'fighting'},Vaporeon:{hp:120,type:'water',weakness:'lightning'}};POKEMON_META[n]=map[n]||{hp:120,type:'normal',weakness:''}}});
+Object.entries(CHRONICLE_DB.pokemon).forEach(([n,b])=>{if(!POKEMON_META[n])POKEMON_META[n]={hp:b.pokemon.hp||120,type:b.pokemon.type||'normal',weakness:b.pokemon.weakness||''}});
 function allChronicleNames(){return Array.from(new Set([...DATA.order,...CHRONICLE_DB.order]))}
 function isChronicleOnlyPokemon(name){return CHRONICLE_DB.order.includes(name)}
-function getPokemonBlock(name){return DATA.pokemon[name]||CHRONICLE_DB.pokemon[name]}
+function getPokemonBlock(name,legacy=chronicleMode){return (legacy?CHRONICLE_DB.pokemon[name]:null)||DATA.pokemon[name]||CHRONICLE_DB.pokemon[name]}
+function pokemonMeta(name,legacy=chronicleMode){return (legacy?CHRONICLE_DB.pokemon[name]?.pokemon:null)||POKEMON_META[name]||{hp:120,type:'normal',weakness:''}}
 function cleanMoveName(name){return name==null?name:String(name).replace(/[?？]/g,'').replace(/\s+/g,' ').trim()}
 function hydrateMove(m){if(!m)return m;const found=ALL_MOVES.find(x=>(m.code&&x.code===m.code)||x.image===m.image)||m;found.name=cleanMoveName(found.name);return found}
 function legacyNameKey(name){return String(name||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase()}
@@ -204,9 +205,9 @@ function setupError(){
 function isComplete(p){if(!chronicleMode)return DATA.order.includes(p.pokemon)&&p.moves.length===4&&p.moves.every(m=>{const card=hydrateMove(m);return !card.chronicle&&(!card.owner||card.owner===p.pokemon)});syncEvolutionLoadouts(p);return isLoadoutComplete(p)&&(p.evolutionLoadouts||[]).every(isLoadoutComplete)}
 function cur(){return players[active]}
 function freshFighter(p,i,format=battleFormat,chronicle=chronicleMode){
- const meta=POKEMON_META[p.pokemon]||{hp:120,type:'normal',weakness:''};
+ const meta=pokemonMeta(p.pokemon,chronicle);
  const loads=[{pokemon:p.pokemon,moves:p.moves.map(hydrateMove)},...(chronicle?p.evolutionLoadouts||[]:[]).map(l=>({pokemon:l.pokemon,moves:l.moves.map(hydrateMove)}))];
- return {...formatDefinition(format).units[i],playerIndex:i,pokemon:p.pokemon,moves:p.moves.map(m=>hydrateMove({...m})),loadouts:loads,loadoutIndex:0,turnsTaken:0,baseEnergyDice:null,hp:meta.hp,maxHp:meta.hp,lastMove:null,lastMoveFailed:false,energyMod:0,charBlocked:false,incomingMod:0,incomingSet:null,bannedMoves:[],ko:false};
+ return {...formatDefinition(format).units[i],playerIndex:i,chronicle:!!chronicle,pokemon:p.pokemon,moves:p.moves.map(m=>hydrateMove({...m})),loadouts:loads,loadoutIndex:0,turnsTaken:0,baseEnergyDice:null,hp:meta.hp,maxHp:meta.hp,lastMove:null,lastMoveFailed:false,energyMod:0,charBlocked:false,incomingMod:0,incomingSet:null,bannedMoves:[],ko:false};
 }
 function makeBattleState(fighters,format,chronicle){return {format,chronicle,phase:'chooseFirst',fighters,activeController:null,lastActiveUnits:{},lastTargetIndex:null,turnIndex:null,turnNumber:0,targetIndex:null,selectedMove:null,log:[],winner:null,winnerTeam:null,repeat:false,snapshot:null}}
 
@@ -303,7 +304,7 @@ function loadBattle(){try{const b=JSON.parse(localStorage.getItem(BATTLE_KEY)||'
 function living(){return fieldIndices().filter(i=>!battle.fighters[i].ko&&battle.fighters[i].hp>0)}
 function nextLivingFrom(i){const n=battle.fighters.length;for(let k=1;k<=n;k++){const j=(i+k)%n;if(!battle.fighters[j].ko&&battle.fighters[j].hp>0)return j}return null}
 function addLog(text){battle.log.unshift(text);battle.log=battle.log.slice(0,60)}
-function fighterMeta(f){return POKEMON_META[f.pokemon]||{hp:120,type:'normal',weakness:''}}
+function fighterMeta(f){return pokemonMeta(f.pokemon,f.chronicle??battle?.chronicle??chronicleMode)}
 function moveMeta(f,m){if(m&&m.chronicle){const ec=m.energyCost||{};const type=Object.keys(ec).find(k=>k!=='normal'&&Number(ec[k])>0)||fighterMeta(f).type;return{damage:(Number(m.damage)||0)*10,type}}return MOVE_META[f.pokemon+'|'+m.name]||{damage:0,type:fighterMeta(f).type}}
 function transitionChoices(f,m){
  if(!m?.action||!Array.isArray(f.loadouts))return [];
@@ -318,7 +319,7 @@ function applyChronicleTransition(f,m,chosenIndex){
  const choices=transitionChoices(f,m),ni=choices.length===1?choices[0]:chosenIndex;
  if(!choices.includes(ni))return false;
  const n=f.loadouts[ni];f.loadoutIndex=ni;f.pokemon=n.pokemon;f.moves=n.moves.map(hydrateMove);
- const meta=POKEMON_META[f.pokemon]||{hp:120};f.maxHp=m.maxHp||meta.hp||120;
+ const meta=fighterMeta(f);f.maxHp=m.maxHp||meta.hp||120;
  f.hp=Math.min(f.maxHp,f.hp);if(m.energyDice!=null)f.baseEnergyDice=m.energyDice;
  f.lastMove=null;f.bannedMoves=[];addLog(`${fighterLabel(f)} switched to ${f.pokemon} via ${m.name}.`);return true;
 }

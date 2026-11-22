@@ -47,9 +47,9 @@ run(`
   const strongBite = movesForPokemon('Pikachu').find(m=>m.code==='OGW37-001');
   const normalGnaw = movesForPokemon('Strong Pikachu').find(m=>m.code==='STW04-001');
 `);
-assert.equal(run('buildOutcome(normalFighter,targetFighter,strongBite,0).damage'), 30);
+assert.equal(run('buildOutcome(normalFighter,targetFighter,strongBite,0).damage'), 10, 'Original Squirtle has no printed weakness');
 assert.equal(run('buildOutcome(normalFighter,targetFighter,strongBite,0).selfDamage'), 10);
-assert.equal(run('buildOutcome(strongFighter,targetFighter,normalGnaw,0).damage'), 60);
+assert.equal(run('buildOutcome(strongFighter,targetFighter,normalGnaw,0).damage'), 40);
 assert.equal(run('strongBite.owner'), 'Strong Pikachu');
 
 // Shared selections survive save/load and do not remain legal outside Legacy.

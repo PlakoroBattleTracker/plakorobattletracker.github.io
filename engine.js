@@ -4,7 +4,7 @@ const clone=x=>JSON.parse(JSON.stringify(x));
 function canonical(m){return hydrateMove(m)}
 function moveId(m){return m.code||m.image}
 function selectedBattleMove(){return battle.borrowedMove||canonical(battle.fighters[battle.turnIndex].moves[battle.selectedMove])}
-function effectText(text){return text.replace(/charakoro|characcoro/gi,'characoro').replace(/Pokermon/gi,'Pokemon').replace(/damag(?:e)?|damge/gi,'damage').replace(/thenumber/gi,'the number').replace(/incraes/gi,'increase').replace(/enekoro you rol\b/gi,'enekoro you roll').replace(/On you next/gi,'On your next').replace(/to yourself/gi,'to itself')
+function effectText(text){return text.replace(/charakoro|characcoro/gi,'characoro').replace(/Pokermon|poekmon/gi,'Pokemon').replace(/damag(?:e)?|damge/gi,'damage').replace(/thenumber/gi,'the number').replace(/incraes/gi,'increase').replace(/enekoro you rol\b/gi,'enekoro you roll').replace(/On you next/gi,'On your next').replace(/to yourself/gi,'to itself').replace(/\bopn\b/gi,'on').replace(/choose one of/gi,'Choose 1 of')
  .replace(/(increase|reduce) the number of enekoro you roll (?:(?:during|on) )?(?:(?:your|you) )?next turn by ((?:an additional )?\d+)/gi,'On your next turn, $1 the number of enekoro you roll by $2')
  .replace(/reduce the number of enekoro your opponent rolls? on their next turn by ((?:an additional )?\d+)/gi,"On your opponent's next turn, reduce the number of enekoro they roll by $1")
  .replace(/heals an additional (\d+)/gi,'heals $1 additional');}
@@ -25,7 +25,7 @@ function baseAttackDamage(a,t,m){
  const weak=d>0&&m.type===fighterMeta(t).weakness&&!/isn't affected by Weakness/i.test(m.effect);
  return d+(weak?20:0)+(t.incomingMod||0)+(a.attackMod||0);
 }
-function visibleDamage(a,t,m){return t.incomingSet!=null?t.incomingSet:Math.max(0,baseAttackDamage(a,t,m))}
+function visibleDamage(a,t,m){return t.incomingSet!=null?t.incomingSet:Math.max(0,baseAttackDamage(a,t,m))*(t.incomingMultiplier||1)}
 function effectQuestion(r,title,detail,max,field,per=1,min=0){r.questions.push({kind:'count',title,detail,max,min,field,per})}
 function chibiQuestion(r,f,title,detail,max,field,per=1){
  if(f.chibiBlocked){r.questions.push({kind:'notice',title:'Chibi Characoro unavailable',detail:`${f.pokemon} cannot roll Chibi Characoro this turn. This roll contributes zero.`});return;}
@@ -53,15 +53,16 @@ function buildOutcome(a,t,m,outcome=-1){
   text=text.replace(/, then re-roll your enekoro and deal an additional 10 damage for each \{F\} rolled\./i,'.');
  }
  const replacement=text.match(/Roll (\d+) chibi characoro instead of/i);
- text=text.replace(/Rolls? (\d+) chibi characoro,\s*([^.]*(?:\.|$))/gi,(whole,num,clause)=>{
+ text=text.replace(/Rolls? (\d+)(?: more)? chibi characoro,\s*([^.]*(?:\.|$))/gi,(whole,num,clause)=>{
   const n=replacement?+replacement[1]:+num;
   let per=+(clause.match(/(?:does|heals?) (\d+)/i)?.[1]||1),field='damage';
   if(/reduce the number/i.test(clause)){field=/your opponent|opponent rolls/i.test(clause)?'enemyEnergy':'selfEnergy';per=-1}
   if(/increase the number/i.test(clause)){field='selfEnergy';per=1}
   if(/heals? \d+/i.test(clause))field='heal';
-  if(/gain 1 \{L\}/i.test(clause)){field='energySymbols';per=1;r.energySymbols=0;r.symbolType='lightning'}
+  const symbols=clause.match(/(?:gain|add) (\d+) \{([RCLWGPFDMYN])\}/i);
+  if(symbols){field='energySymbols';per=+symbols[1];r.energySymbols??=0;r.symbolType=PlakoroSource.TYPES[symbols[2].toUpperCase()]}
   chibiQuestion(r,a,`Roll ${n} Chibi Characoro`,'How many landed Standing?',n,field,per);
-  if(field==='energySymbols'&&!a.chibiBlocked&&!/does 0 damage to itself instead/i.test(text))r.questions.at(-1).also=[{field:'selfDamage',per:10}];
+  if(field==='energySymbols'&&/does (\d+) damage to itself/i.test(clause)&&!a.chibiBlocked&&!/does 0 damage to itself instead/i.test(text))r.questions.at(-1).also=[{field:'selfDamage',per:+clause.match(/does (\d+) damage to itself/i)[1]}];
   return '';
  });
  if(/for each \{[RCLWGPFDMY]\}/i.test(text)){
@@ -70,7 +71,7 @@ function buildOutcome(a,t,m,outcome=-1){
   const types={R:'Fire',C:'Normal',L:'Electric',W:'Water',G:'Grass',P:'Psychic',F:'Fighting',D:'Dark',M:'Steel',Y:'Flying'};
   const healing=/heals/i.test(clause),per=+(clause.match(/(?:does|heals) (\d+)/i)?.[1]||10);
   const multiplier=symbols.length===1?(a.energyMultipliers?.[PlakoroSource.TYPES[symbols[0]]]||1):1;
-  effectQuestion(r,'Count the energy symbols',`How many ${symbols.map(x=>types[x]).join(' and ')} symbols did you roll? Count both symbols on double faces.${multiplier>1?' Enter the printed symbols; Energy Burn doubles their value automatically.':''}`,Math.max(24,energyDiceFor(a)*2),healing?'heal':'damage',per*multiplier);
+  effectQuestion(r,/re-?roll your enekoro/i.test(text)?'Reroll your Enekoro':'Count the energy symbols',`How many ${symbols.map(x=>types[x]).join(' and ')} symbols did you roll? Count both symbols on double faces.${multiplier>1?' Enter the printed symbols; Energy Burn doubles their value automatically.':''}`,Math.max(24,energyDiceFor(a)*2),healing?'heal':'damage',per*multiplier);
   if(/after the fifth/i.test(clause))r.questions.at(-1).offset=5;
   text=text.replace(clause,'');
  }
@@ -102,7 +103,8 @@ function buildOutcome(a,t,m,outcome=-1){
   if(+x[1]>0)r.weaknessPending=false;
  }
  if(/Damage dealt by this attack is doubled/i.test(text))r.damage*=2;
- for(const x of text.matchAll(/This (?:Pok[eé]mon|move) (?:also )?does (\d+) damage to itself/gi))r.selfDamage+=+x[1];
+ for(const x of text.matchAll(/This (?:attack|move) does (\d+) less damage/gi))r.damage-=+x[1];
+ for(const x of text.matchAll(/This (?:Pok[eé]mon|move) (?:also )?does (\d+) (?:additional )?damage to itself/gi))r.selfDamage+=+x[1];
  r.recoilEqualsDamage=/does the same amount of damage to itself that it did to the opponent/i.test(text);
  if(/Prevent the damage this move would do|Reduce the damage this move does to 0|does 0 damage to itself instead/i.test(text))r.selfDamage=0;
  for(const x of text.matchAll(/Heal (\d+)(?: more| additional)? damage (?:from|for) this Pok[eé]mon|(?:This (?:Pok[eé]mon|move)|it) heals (\d+)(?: additional| more)? (?:HP|damage)/gi))r.heal+=+(x[1]||x[2]);
@@ -110,6 +112,8 @@ function buildOutcome(a,t,m,outcome=-1){
  for(const x of text.matchAll(/(?:On|During) (?:the |your |you )?opponent'?s?(?: next)? turn,? reduce the number (?:of )?enekoro(?: (?:they|you) roll)? by (?:an additional |another )?(\d+)/gi))r.enemyEnergy-=+x[1];
  for(const x of text.matchAll(/On your(?: next)? turn,? (increase|reduce) the number of enekoro (?:you )?roll by (?:an additional |another )?(\d+)/gi))r.selfEnergy+=(x[1].toLowerCase()==='increase'?1:-1)*+x[2];
  for(const x of text.matchAll(/takes (\d+) less damage|Reduce damage taken by an additional (\d+)|takes -(\d+) damage/gi))r.defense-=+(x[1]||x[2]||x[3]);
+ const replacementDefense=text.match(/takes (\d+) less damage[^.]*instead/i);if(replacementDefense)r.defense=-Number(replacementDefense[1]);
+ if(/takes double damage/i.test(text))r.incomingMultiplier=2;
  if(/doesn't take damage from attacks/i.test(text))r.nullify=true;
  if(/cannot roll their Chara[ck]oro/i.test(text))r.blockChar=true;
  if(/cannot roll their Chibi characoro/i.test(text))r.blockChibi=true;
@@ -120,7 +124,7 @@ function buildOutcome(a,t,m,outcome=-1){
   if(ce?.orientations.length===1)r.fixedSelf=ce.orientations[0];
   else r.questions.push({kind:'orientation',title:'Which way did your Characoro land?',options:ce?.orientations||[],field:'fixedSelf'});
  }
- const ban=text.match(/Choose (\d+) of your opponent's (?:attacks|moves)/i);
+ const ban=text.match(/Choose (\d+) of (?:your opponent's|their) (?:attacks|moves)/i);
  if(ban){const force=/they use this attack/i.test(text),options=t.moves.filter(x=>force||x.name!==t.lastMove);if(options.length)r.questions.push({kind:force?'force-move':'ban',title:force?'Choose their attack for next turn':'Choose a move to disable next turn',options:options.map(moveId),remaining:+ban[1]})}
  if(/Use "Electric Rush" 1 more time/i.test(text))r.repeat=true;
  for(const x of text.matchAll(/all damage dealt is increased by (\d+)/gi))r.attackBonus=+x[1];
@@ -131,7 +135,13 @@ function buildOutcome(a,t,m,outcome=-1){
   else if(choices.length)r.questions.push({kind:'evolution',title:'Choose an evolution',options:choices});
   // Heal before changing the maximum. It is applied once below after transition.
  }
- r.repeatLimit=/up to twice|twice during/.test(m.effect)?2:/3 times (?:per turn|during your turn)/.test(m.effect)?3:0;
+ if(m.conditionalEvolution&&a.lastMove==='Evolve'&&a.lastMoveFailed){
+  const trigger=a.moves.map(canonical).find(x=>x.action==='evolve'&&x.targets.includes(m.conditionalEvolution));
+  const choices=trigger?transitionChoices(a,trigger):[];
+  if(choices.length===1){r.transition=choices[0];r.transitionMove=trigger;}
+ }
+ r.repeatRequired=/(?:use|perform) this move twice/i.test(m.effect);
+ r.repeatLimit=r.repeatRequired||/up to twice|twice during/i.test(m.effect)?2:/3 times (?:per turn|during your turn)/i.test(m.effect)?3:0;
  r.skipEnemy=/Your opponent skips their next turn/i.test(text);
  r.skipSelf=/Skip your next turn/i.test(text);
  if(/their characoro lands on/i.test(text))r.barrier=['handstand','back','down'];
@@ -154,13 +164,13 @@ function buildOutcome(a,t,m,outcome=-1){
 
  return r;
 }
-function outcomeDamage(r,t){const d=t.incomingSet!=null?t.incomingSet:Math.max(0,r.damage);return r.preventDamage||(t.incomingThreshold!=null&&d<=t.incomingThreshold)?0:d}
+function outcomeDamage(r,t){const d=t.incomingSet!=null?t.incomingSet:Math.max(0,r.damage)*(t.incomingMultiplier||1);return r.preventDamage||(t.incomingThreshold!=null&&d<=t.incomingThreshold)?0:d}
 function selectAttack(index){
  const a=battle.fighters[battle.turnIndex],m=canonical(a.moves[index]);
  if(isMoveDisabled(a,m)||!legalTargets().includes(battle.targetIndex))return;
  battle.selectedMove=index;battle.borrowedMove=null;battle.phase='resolve';battle.pending=null;saveBattle();render();
 }
-function isMoveDisabled(f,m){if(f.forcedMove)return moveId(m)!==f.forcedMove;return (m.special&&(f.usedSpecialMoves||[]).includes(moveId(m)))||(!battle.repeat&&(f.lastMove===m.name||(f.bannedMoves||[]).some(v=>v===moveId(m)||v===m.name)))}
+function isMoveDisabled(f,m){if(m.maxUserHp!=null&&f.hp>m.maxUserHp)return true;if(f.forcedMove)return moveId(m)!==f.forcedMove;return (m.special&&(f.usedSpecialMoves||[]).includes(moveId(m)))||(!battle.repeat&&(f.lastMove===m.name||(f.bannedMoves||[]).some(v=>v===moveId(m)||v===m.name)))}
 function chooseOutcome(index){
  if(battle.phase!=='resolve'||battle.pending)return;
  const a=battle.fighters[battle.turnIndex],t=battle.fighters[battle.targetIndex],m=selectedBattleMove();
@@ -196,7 +206,7 @@ function commitOutcome(failed){
  const damage=failed?0:outcomeDamage(r,t),wasRepeat=!!battle.repeat;
  // Modifiers for the current attack expire before new card effects are added.
  if(!wasRepeat){a.energyMod=0;a.energySymbols=0;a.energyMultipliers={};a.charBlocked=false;a.chibiBlocked=false;a.fixedOrientation=null;a.chooseOrientation=false;a.failureOrientations=[];a.bannedMoves=[];a.attackMod=0;a.forcedMove=null;a.rerolls=0;a.rerollEnergy=0}
- t.incomingMod=0;t.incomingSet=null;t.incomingThreshold=null;t.sideShield=false;t.lastAttackDamage=damage;
+ t.incomingMod=0;t.incomingSet=null;t.incomingThreshold=null;t.incomingMultiplier=1;t.sideShield=false;t.lastAttackDamage=damage;
  a.lastMove=m.name;a.lastMoveCode=moveId(m);a.lastBaseDamage=m.baseDamage||0;a.lastMoveFailed=failed;
  if(m.special)a.usedSpecialMoves=[...new Set([...(a.usedSpecialMoves||[]),moveId(m)])];
  if(failed&&m.failureDamage)a.hp=Math.max(0,a.hp-m.failureDamage);
@@ -204,9 +214,11 @@ function commitOutcome(failed){
   if(r.recoilEqualsDamage)r.selfDamage+=damage;
   t.hp=Math.max(0,t.hp-damage);a.hp=Math.max(0,a.hp-r.selfDamage);
   if(m.action)applyChronicleTransition(a,m,r.transition);
+  else if(r.transitionMove)applyChronicleTransition(a,r.transitionMove,r.transition);
   a.hp=Math.min(a.maxHp,a.hp+r.heal);
   a.energyMod=(a.energyMod||0)+r.selfEnergy;t.energyMod=(t.energyMod||0)+r.enemyEnergy;
   a.incomingMod=(a.incomingMod||0)+r.defense;if(r.nullify)a.incomingSet=0;
+  if(r.incomingMultiplier)a.incomingMultiplier=r.incomingMultiplier;
   if(r.blockChar)t.charBlocked=true;if(r.fixedEnemy)t.fixedOrientation=r.fixedEnemy;if(r.fixedSelf)a.fixedOrientation=r.fixedSelf;
   if(r.blockChibi)t.chibiBlocked=true;if(r.energyMultipliers)a.energyMultipliers=r.energyMultipliers;
   a.attackMod=(a.attackMod||0)+r.attackBonus;t.bannedMoves=[...new Set([...(t.bannedMoves||[]),...r.ban])];
@@ -228,7 +240,7 @@ function commitOutcome(failed){
  else if(isLeagueFormat(battle.format)&&(a.ko||t.ko)){battle.repeat=false;battle.chain=null;finishFormatTurn(ai,ti)}
  else if(r?.borrow){battle.repeat=true;battle.phase='borrowMove';battle.borrowEnergy=r.borrowEnergy;battle.borrowDice=t.baseEnergyDice??3}
  else if(r?.repeat){battle.repeat=true;battle.phase='resolve'}
- else if(r?.repeatLimit&&hit<r.repeatLimit){battle.repeat=true;battle.phase='repeatChoice'}
+ else if(r?.repeatLimit&&hit<r.repeatLimit){battle.repeat=true;battle.phase=r.repeatRequired?'resolve':'repeatChoice'}
  else{battle.repeat=false;battle.chain=null;finishFormatTurn(ai,ti)}
  saveBattle();render();showImpact(ti,damage,failed);
 }
