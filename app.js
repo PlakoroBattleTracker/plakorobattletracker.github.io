@@ -2,8 +2,8 @@
 const TYPE_COLORS={normal:'#E4DFD2',psychic:'#DCC4EC',fighting:'#FFC79A',fire:'#FFACAC',water:'#A8D4EA',grass:'#B8E6C0',steel:'#D3D6DA',dark:'#A3D9CE',flying:'#C6E6FA',lightning:'#FFE58A',dragon:'#C5B9ED'};
 const TRAINER_COLORS=['#ffa4d4','#92cdf2','#a8d8a1','#ddbbf1'];
 const PORTABLE_ASSETS=window.PLAKORO_ASSETS||{};
-let cardUpdater=null;
-const asset=p=>cardUpdater?.asset(p)||PORTABLE_ASSETS[p]||(p?.startsWith('chronicle/')?p+'?v='+CHRONICLE_DB.checked:p);
+let cardUpdater=null,chronicleImages=new Map();
+const asset=p=>chronicleImages.get(p)||cardUpdater?.asset(p)||PORTABLE_ASSETS[p]||(p?.startsWith('chronicle/')?p+'?v='+CHRONICLE_DB.checked:p);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ui={modal:null,loadout:-1,search:'',preview:null};
 const clearedLoadouts=new WeakMap();
@@ -98,9 +98,9 @@ function renderRepeatChoice(){return `<section class="overlay question"><div><h2
 function renderBorrowChoice(){return `<section class="overlay" role="dialog" aria-label="Metronome"><header class="overlay-head"><h2>Metronome · Choose an opponent’s move</h2>${btn('borrow-pass','Finish turn')}</header><div class="scroll"><p>Use your opponent’s Energy Dice${battle.borrowEnergy?' ('+(battle.borrowEnergy>0?'+':'')+battle.borrowEnergy+' dice)':''}.</p><div class="move-grid">${borrowedMoveChoices().map(m=>moveCard(m,'borrow-move',moveId(m))).join('')}</div></div></section>`}
 function renderFirst(){const controllers=[...new Set(battle.fighters.map(f=>f.controller))];return toolbar('Who goes first?')+`<section class="question"><div><h2>Choose the first trainer</h2><div class="option-grid">${controllers.map(c=>{const i=battle.fighters.findIndex(f=>f.controller===c);return btn('battle-first',esc(battle.fighters[i].controllerLabel),'large-btn primary',`data-index="${i}"`)}).join('')}</div></div></section>`}
 function renderWinner(){const f=battle.fighters[battle.winner];return `<section class="result" style="${typeStyle(f?fighterMeta(f).type:'normal',true)}"><p>BATTLE COMPLETE</p><h1>${esc(battleWinnerLabel())}</h1>${f?art(f.pokemon):''}<div class="actions">${btn('rematch','Rematch','large-btn primary')}${btn('home','Battle formats','large-btn')}${btn('undo','Undo last action','large-btn',battle.snapshot?'':'disabled')}</div></section>`}
-function renderMenu(){return `<section class="overlay" role="dialog" aria-modal="true" aria-label="Battle menu"><header class="overlay-head"><h2>Battle menu</h2>${btn('close-menu','×','close-btn','aria-label="Close menu"')}</header><div class="menu-body"><div class="menu-actions">${btn('home','Battle formats','large-btn')}${battle?btn('resume','Resume battle','large-btn primary')+btn('rematch','Rematch','large-btn')+btn('end-battle','End battle','large-btn'):''}</div>${battle?`<h3>Adjust HP</h3>${battle.fighters.map((f,i)=>({f,i})).filter(({i})=>!isLeagueFormat(battle.format)||fieldIndices().includes(i)).map(({f,i})=>`<div class="hp-adjust"><strong>${esc(pokemonLabel(f.pokemon))}</strong>${btn('hp-minus','−10','small-btn',`data-index="${i}"`)}<output>${f.hp}</output>${btn('hp-plus','+10','small-btn',`data-index="${i}"`)}<small>Maximum ${f.maxHp}</small></div>`).join('')}<h3>Battle log</h3>${battle.log.map(t=>`<div class="log-item">${esc(t)}</div>`).join('')}`:''}${renderUpdateStatus()}<h3>Legacy format (Chronicle mode)</h3><p>Enable Chronicle during setup to use Legacy rules. Pikachu, Bulbasaur, and Squirtle each have separate 2026 and 1997 choices, with their own character cards and stats. Normal, Strong, and Legendary versions of the same Pokémon can use one another’s move cards. Surfing Pikachu can use every Pikachu version’s moves; Surfing Pikachu’s own moves stay exclusive to Surfing Pikachu.</p><h3>Card databases</h3><p>${cardUpdater?.catalog.moves.length||PLAKORO_BUNDLE.moves.length} modern moves from <a href="https://github.com/Jollto/PlakoroDB" target="_blank" rel="noopener">PlakoroDB</a> (Jollto, CC BY-NC 4.0), plus ${Object.values(CHRONICLE_DB.movePools).flat().length} Chronicle moves and ${Object.keys(CHRONICLE_DB.pokemon).length} original Pokémon cards from your <a href="https://drive.google.com/drive/folders/1g7KX3NYqRm6mVtbo_hIkir_6QT27E-tW" target="_blank" rel="noopener">Chronicle folder</a>. All card images are included for offline play. Chronicle effects use the supplied .koro files. The original Legacy card folders were checked on ${esc(CHRONICLE_DB.checked)}.</p><p>Interface and turn flow inspired by <a href="https://beymetchannel.github.io/PlakoroBattle/" target="_blank" rel="noopener">PlakoroBattle</a>. Pokémon and move card images come directly from PlakoroDB and the Chronicle folder. Pokémon and associated artwork belong to their respective owners.</p><p>${esc(formatDefinition(battle?.format||battleFormat).rules)}</p></div></section>`}
+function renderMenu(){return `<section class="overlay" role="dialog" aria-modal="true" aria-label="Battle menu"><header class="overlay-head"><h2>Battle menu</h2>${btn('close-menu','×','close-btn','aria-label="Close menu"')}</header><div class="menu-body"><div class="menu-actions">${btn('home','Battle formats','large-btn')}${battle?btn('resume','Resume battle','large-btn primary')+btn('rematch','Rematch','large-btn')+btn('end-battle','End battle','large-btn'):''}</div>${battle?`<h3>Adjust HP</h3>${battle.fighters.map((f,i)=>({f,i})).filter(({i})=>!isLeagueFormat(battle.format)||fieldIndices().includes(i)).map(({f,i})=>`<div class="hp-adjust"><strong>${esc(pokemonLabel(f.pokemon))}</strong>${btn('hp-minus','−10','small-btn',`data-index="${i}"`)}<output>${f.hp}</output>${btn('hp-plus','+10','small-btn',`data-index="${i}"`)}<small>Maximum ${f.maxHp}</small></div>`).join('')}<h3>Battle log</h3>${battle.log.map(t=>`<div class="log-item">${esc(t)}</div>`).join('')}`:''}${renderUpdateStatus()}<h3>Legacy format (Chronicle mode)</h3><p>Enable Chronicle during setup to use Legacy rules. Pikachu, Bulbasaur, and Squirtle each have separate 2026 and 1997 choices, with their own character cards and stats. Normal, Strong, and Legendary versions of the same Pokémon can use one another’s move cards. Surfing Pikachu can use every Pikachu version’s moves; Surfing Pikachu’s own moves stay exclusive to Surfing Pikachu.</p><h3>Card databases</h3><p>${cardUpdater?.catalog.moves.length||PLAKORO_BUNDLE.moves.length} modern moves from <a href="https://github.com/Jollto/PlakoroDB" target="_blank" rel="noopener">PlakoroDB</a> (Jollto, CC BY-NC 4.0), plus ${Object.values(CHRONICLE_DB.movePools).flat().length} Chronicle moves and ${Object.keys(CHRONICLE_DB.pokemon).length} original Pokémon cards from your <a href="https://drive.google.com/drive/folders/1g7KX3NYqRm6mVtbo_hIkir_6QT27E-tW" target="_blank" rel="noopener">Chronicle folder</a>. All card images are included for offline play. Chronicle effects use the supplied .koro files. The Legacy catalogue was checked on ${esc(CHRONICLE_DB.checked)} and now updates from Drive automatically.</p><p>Interface and turn flow inspired by <a href="https://beymetchannel.github.io/PlakoroBattle/" target="_blank" rel="noopener">PlakoroBattle</a>. Pokémon and move card images come directly from PlakoroDB and the Chronicle folder. Pokémon and associated artwork belong to their respective owners.</p><p>${esc(formatDefinition(battle?.format||battleFormat).rules)}</p></div></section>`}
 function renderPreview(){const m=ui.preview;return `<section class="overlay" role="dialog" aria-label="${esc(m.name)} card"><header class="overlay-head"><h2>${esc(m.name)}</h2>${btn('close-preview','×','close-btn','aria-label="Close card"')}</header><div class="card-view"><img src="${asset(m.image)}" alt="${esc(m.name)} card"></div></section>`}
-function render(){cardUpdater?.maybeApply();stage.innerHTML=(mode==='formats'?renderHome():mode==='battle'&&battle?renderBoard():renderSetup())+(ui.modal==='menu'?renderMenu():ui.modal==='league-party'?renderLeagueParty():['pokemon','moves'].includes(ui.modal)?renderPicker():'')+(ui.preview?renderPreview():'');fitStage()}
+function render(){cardUpdater?.maybeApply();window.ChronicleSync?.maybeApply();stage.innerHTML=(mode==='formats'?renderHome():mode==='battle'&&battle?renderBoard():renderSetup())+(ui.modal==='menu'?renderMenu():ui.modal==='league-party'?renderLeagueParty():['pokemon','moves'].includes(ui.modal)?renderPicker():'')+(ui.preview?renderPreview():'');fitStage()}
 function renderBuilder(){render()}
 function renderBattle(){render()}
 function setMode(m){mode=m;ui.modal=null;ui.preview=null;render()}
@@ -110,7 +110,7 @@ stage.addEventListener('input',e=>{if(e.target.dataset.enekoroIndex!==undefined)
 stage.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b||b.disabled)return;const action=b.dataset.action,index=Number(b.dataset.index),value=b.dataset.value??b.dataset.index;
  if(handleLeagueAction(action,index,value))return;
  switch(action){
- case 'check-updates':cardUpdater?.check();break;
+ case 'check-updates':cardUpdater?.check();window.ChronicleSync?.check(true);break;
  case 'format':ui.modal=null;chooseBattleFormat(value);break;
  case 'home':concealLeagueSetup();setMode('formats');break;
  case 'continue':setMode('builder');break;
@@ -137,7 +137,7 @@ stage.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(
  case 'add-evolution':{const p=cur();if(allowsEeveeAlternates(p)&&p.evolutionLoadouts.length<3){p.evolutionLoadouts.push({kind:'eevee-alternate',pokemon:null,moves:[]});syncEvolutionLoadouts(p);ui.loadout=p.evolutionLoadouts.length-1;ui.modal=editLoadout().pokemon?'moves':'pokemon';ui.search='';saveBuilds();render()}break}
  case 'remove-loadout':{if(editLoadout()?.kind==='eevee-alternate'){cur().evolutionLoadouts.splice(ui.loadout,1);ui.loadout=0;ui.modal='moves';saveBuilds();render()}break}
  case 'close-picker':ui.modal=null;saveBuilds();render();break;
- case 'start-first':if(!setupError()){battle=null;cardUpdater?.maybeApply();battle=newBattle();startFirst(index)}break;
+ case 'start-first':if(!setupError()){battle=null;cardUpdater?.maybeApply();window.ChronicleSync?.maybeApply();battle=newBattle();startFirst(index)}break;
  case 'battle-first':startFirst(index);break;
  case 'attacker':if(availableAttackers().includes(index)){battle.turnIndex=index;battle.phase='turn';consumeSkippedTurn();saveBattle();render()}break;
  case 'borrow-move':borrowMove(value);break;
@@ -174,13 +174,33 @@ function applyModernCatalog(c){
  const old=ALL_MOVES.filter(m=>!m.chronicle&&!c.moves.some(x=>x.code===m.code));
  ALL_MOVES.splice(0,ALL_MOVES.length,...c.moves,...Object.values(CHRONICLE_DB.movePools).flat(),...old);
  CHRONICLE_DB.order=Object.keys(CHRONICLE_DB.pokemon).filter(n=>!freshNames.has(n));
+ if(window.CHRONICLE_DATA)applyChronicleCatalog(window.CHRONICLE_DATA);
  players=players.map(cleanPlayer);players.forEach(syncEvolutionLoadouts);saveBuilds();
 }
-function renderUpdateStatus(){
- const s=cardUpdater?.state;return `<section class="update-status"><h3>PlakoroDB automatic updates</h3><p>PlakoroDB is checked when you open the tracker and every 30 minutes while it is open. Chronicle Drive cards are included with tracker releases; the latest Legacy card check was ${esc(CHRONICLE_DB.checked)}.</p><p role="status">${esc(s?.message||'Starting update checks…')}</p><p>${s?.lastChecked?'Last checked: '+esc(new Date(s.lastChecked).toLocaleString()):'Included cards: October 26, 2026'} · ${DATA.order.length} modern Pokémon</p>${btn('check-updates',s?.checking?'Checking…':'Check for updates now','large-btn',s?.checking?'disabled':'')}</section>`;
+function canApplyCardUpdates(){return !['pokemon','moves'].includes(ui.modal)&&(!isLeagueFormat()||leagueSetup.phase==='party'||battle?.phase==='winner')&&(!battle||battle.phase==='winner')}
+function applyChronicleCatalog(c){
+ const next=ChronicleBattle.catalogue(c,DATA.order),modern=new Set(DATA.order),byCode=new Map(Object.entries(next.pokemon).map(([n,b])=>[b.pokemon.code,n])),aliases=new Map();
+ const images=new Map(ChronicleSync.cards(c).filter(x=>/^(?:OG[CW]|OCW)\d+(?:-\d+)+$/.test(x.code||x.id||'')).map(x=>[ChronicleBattle.imagePath(x),x.image]));
+ for(const [n,b]of Object.entries(CHRONICLE_DB.pokemon)){const key=byCode.get(b.pokemon.code);if(key&&key!==n)aliases.set(n,key);}
+ function rename(p){if(!p)return;if(aliases.has(p.pokemon))p.pokemon=aliases.get(p.pokemon);for(const l of [...(p.evolutionLoadouts||[]),...(p.loadouts||[])])rename(l);}
+ if(chronicleMode)players.forEach(rename);
+ for(const setup of Object.values(formatSetups))if(setup.chronicleMode)setup.players?.forEach(rename);
+ function renameBattle(b){if(!b)return;if(b.chronicle)b.fighters?.forEach(rename);renameBattle(b.snapshot);}
+ renameBattle(battle);
+ for(const n of Object.keys(CHRONICLE_DB.pokemon))if(!modern.has(n)){delete DATA.pokemon[n];delete POKEMON_META[n];}
+ Object.assign(CHRONICLE_DB,next);
+ for(const [n,b]of Object.entries(next.pokemon)){if(!modern.has(n))DATA.pokemon[n]=b;POKEMON_META[n]={hp:b.pokemon.hp,type:b.pokemon.type,weakness:b.pokemon.weakness};}
+ const moves=Object.values(next.movePools).flat(),fresh=new Set(moves.map(m=>m.code));
+ const retained=ALL_MOVES.filter(m=>!/^RE[CW]/.test(m.code||'')&&(!m.chronicle||!fresh.has(m.code)));
+ ALL_MOVES.splice(0,ALL_MOVES.length,...moves,...retained);chronicleImages=images;
+ players=players.map(cleanPlayer);players.forEach(syncEvolutionLoadouts);saveBuilds();if(battle)saveBattle();
 }
-cardUpdater=PlakoroUpdates.create({bundle:PLAKORO_BUNDLE,canApply:()=>!['pokemon','moves'].includes(ui.modal)&&(!isLeagueFormat()||leagueSetup.phase==='party'||battle?.phase==='winner')&&(!battle||battle.phase==='winner'),apply:applyModernCatalog,onStatus:()=>{if(ui.modal==='menu')render();else if(!ui.modal&&mode!=='battle')render()}});
-cardUpdater.load().then(()=>cardUpdater.check());
-setInterval(()=>cardUpdater.check(),PlakoroUpdates.INTERVAL);
-window.addEventListener('online',()=>cardUpdater.check());
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-(cardUpdater.state.lastChecked||0)>=PlakoroUpdates.INTERVAL)cardUpdater.check()});
+function renderUpdateStatus(){
+ const s=cardUpdater?.state,c=window.ChronicleSync,checking=s?.checking||c?.checking;
+ return `<section class="update-status"><h3>Automatic card updates</h3><p>PlakoroDB and Chronicle Drive are checked when you open or return to the tracker and when your connection returns. While open, PlakoroDB is checked every 15 minutes and Chronicle Drive every 30 minutes. Downloaded cards are saved for offline use. Updates wait until your battle or loadout is closed.</p><h4>PlakoroDB · 2026 cards</h4><p role="status">${esc(s?.message||'Starting update checks…')}</p><p>${s?.lastChecked?'Last checked: '+esc(new Date(s.lastChecked).toLocaleString()):'Using the included modern cards'} · ${DATA.order.length} modern Pokémon</p><h4>Chronicle Drive · OG cards only</h4><p id="chronicle-status" role="status">${esc(c?.status||'Starting Chronicle updates…')}</p><p>${c?.lastChecked?'Last checked: '+esc(new Date(c.lastChecked).toLocaleString()):'Included Legacy cards: '+esc(CHRONICLE_DB.checked)} · ${Object.keys(CHRONICLE_DB.pokemon).length} original Pokémon · ${Object.values(CHRONICLE_DB.movePools).flat().length} moves</p>${btn('check-updates',checking?'Checking…':'Check for updates now','large-btn',checking?'disabled':'')}</section>`;
+}
+cardUpdater=PlakoroUpdates.create({bundle:PLAKORO_BUNDLE,canApply:canApplyCardUpdates,apply:applyModernCatalog,onStatus:()=>{if(ui.modal==='menu')render();else if(!ui.modal&&mode!=='battle')render()}});
+window.addEventListener('chronicle-updated',()=>render());
+window.addEventListener('chronicle-status',()=>{if(ui.modal==='menu')render()});
+cardUpdater.start();
+ChronicleSync.start();

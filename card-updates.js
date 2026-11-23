@@ -1,7 +1,7 @@
 /* Public PlakoroDB sync. Download and validate first; commit one complete snapshot. */
 (function(root){
  'use strict';
- const INTERVAL=30*60*1000;
+ const INTERVAL=15*60*1000;
  function memoryStore(){const images=new Map();let snapshot=null;return {persistent:false,read:async()=>snapshot,image:async sha=>images.get(sha),commit:async(s,items)=>{for(const [k,v] of items)images.set(k,v);snapshot=s}};}
  async function openStore(){
   if(!root.indexedDB)return memoryStore();
@@ -14,6 +14,8 @@
  function create(options){
   const source=options.source||root.PlakoroSource,fetcher=options.fetch||root.fetch.bind(root),now=options.now||Date.now;
   let store=options.store,active=options.bundle,pending=null,snapshot=null,busy=null,ready=false,loading=null;
+  let started=false,timer=null,appActive=true,lastOpen=-Infinity,lastAttempt=0,failed=false;
+  const events=options.events||root,doc=options.document||root.document,scheduleTask=options.setTimeout||setTimeout,cancelTask=options.clearTimeout||clearTimeout;
   let activeImages=new Map(source.assets(active).map(a=>[a.key,a.sha]));
   const bundled=new Map(source.assets(options.bundle).map(a=>[a.key,a])),urls=new Map();
   const state={checking:false,message:'Checking for card updates…',lastChecked:null,lastUpdated:options.bundle.syncedAt,persistent:true,pending:false,counts:{pokemon:active.characters.length,moves:active.moves.length}};
@@ -31,6 +33,16 @@
     map[a.key]=a.sha;
    }
    return map;
+  }
+  async function commitSnapshot(next,downloads){
+   try{await store.commit(next,downloads);}
+   catch{
+    const previous=store,items=new Map(downloads),memory=memoryStore();
+    for(const a of source.assets(next.catalog))if(bundled.get(a.key)?.sha!==a.sha&&!items.has(a.sha)){
+     const blob=await previous.image(a.sha);if(!blob)throw Error('Saved card image is missing');items.set(a.sha,blob);
+    }
+    await memory.commit(next,[...items]);store=memory;state.persistent=false;
+   }
   }
   function maybeApply(){
    if(!pending||!options.canApply())return false;
@@ -50,13 +62,13 @@
   async function check(){
    if(busy)return busy;
    busy=(async()=>{
-    if(!ready)await load();state.checking=true;state.message='Checking PlakoroDB…';emit();
+    if(!ready)await load();lastAttempt=now();failed=false;state.checking=true;state.message='Checking PlakoroDB…';emit();
     try{
      const commit=await request('https://api.github.com/repos/'+source.REPO+'/commits/main');
      if(!/^[a-f0-9]{40}$/.test(commit.sha))throw Error('Invalid repository version');
      const current=pending||active;
      if(commit.sha===current.sha){
-      const next={...(snapshot||{}),catalog:current,lastChecked:now()};await store.commit(next,[]);snapshot=next;state.lastChecked=next.lastChecked;
+      const next={...(snapshot||{}),catalog:current,lastChecked:now()};await commitSnapshot(next,[]);snapshot=next;state.lastChecked=next.lastChecked;
       state.message=pending?'Update downloaded. It will apply after your battle or loadout is closed.':'PlakoroDB cards are up to date.';return;
      }
      const tree=await request('https://api.github.com/repos/'+source.REPO+'/git/trees/'+commit.sha+'?recursive=1');tree.sha=commit.sha;
@@ -76,13 +88,32 @@
      }
      const next={catalog,lastChecked:now(),imageIndex:{...(snapshot?.imageIndex||{})}};
      for(const a of assets)if(bundled.get(a.key)?.sha!==a.sha)next.imageIndex[a.key]=a.sha;else delete next.imageIndex[a.key];
-     await store.commit(next,downloads);snapshot=next;await preload(catalog);pending=catalog;state.pending=true;state.lastChecked=next.lastChecked;
+     await commitSnapshot(next,downloads);snapshot=next;await preload(catalog);pending=catalog;state.pending=true;state.lastChecked=next.lastChecked;
      if(!maybeApply())state.message='Update downloaded. It will apply after your battle or loadout is closed.';
-    }catch(e){state.message=(root.navigator?.onLine===false?'Offline.':e.name==='AbortError'?'Update check timed out.':e.message||'Update check unavailable.')+' Your saved cards are still available.';}
-    finally{state.checking=false;busy=null;emit()}
+    }catch(e){failed=true;state.message=(root.navigator?.onLine===false?'Offline.':e.name==='AbortError'?'Update check timed out.':e.message||'Update check unavailable.')+' Your saved cards are still available.';}
+    finally{state.checking=false;busy=null;emit();schedule()}
    })();return busy;
   }
-  const api={state,load,check,maybeApply,asset,get catalog(){return active},get pending(){return pending}};return api;
+  function schedule(){
+   if(timer!==null)cancelTask(timer);timer=null;
+   if(!started||!appActive||doc?.hidden)return;
+   timer=scheduleTask(()=>{timer=null;check();},failed?60000:Math.max(1000,INTERVAL-(now()-lastAttempt)));
+  }
+  function opened(){
+   appActive=true;if(!ready||doc?.hidden)return;
+   if(busy||now()-lastOpen<1000){schedule();return;}
+   lastOpen=now();return check();
+  }
+  function closed(){appActive=false;if(timer!==null)cancelTask(timer);timer=null;}
+  async function start(){
+   if(started)return;started=true;
+   events.addEventListener?.('online',()=>{if(appActive&&!doc?.hidden)opened();});
+   doc?.addEventListener('visibilitychange',()=>{if(doc.hidden)closed();else opened();});
+   events.addEventListener?.('pageshow',e=>{if(e.persisted)opened();});
+   events.addEventListener?.('plakoro-app-open',opened);events.addEventListener?.('plakoro-app-close',closed);
+   await load();await opened();
+  }
+  const api={state,load,check,start,maybeApply,asset,get catalog(){return active},get pending(){return pending}};return api;
  }
  const api={INTERVAL,create,openStore,memoryStore};root.PlakoroUpdates=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

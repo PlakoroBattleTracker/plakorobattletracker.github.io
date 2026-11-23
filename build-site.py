@@ -11,6 +11,8 @@ OUTPUT = ROOT / "_site"
 RUNTIME = (
     "index.html", "style.css", "data.js", "domain.js", "engine.js",
     "league.js", "plakorodb-source.js", "card-updates.js", "app.js",
+    "card-cache.js", "chronicle-og.js", "chronicle-source.js", "chronicle-config.js",
+    "chronicle-bundle.js", "chronicle-sync.js",
 )
 
 def build():
