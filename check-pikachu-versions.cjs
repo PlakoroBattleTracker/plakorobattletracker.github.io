@@ -100,4 +100,80 @@ oldSaves.set(battleKey,JSON.stringify(oldBattle));
 const oldModern=boot(oldSaves);oldModern.run('loadBuilds();loadBattle()');
 assert(oldModern.run('players.every(p=>p.pokemon==="Pikachu")'));
 assert(oldModern.run('battle.fighters.every(f=>f.pokemon==="Pikachu")'));
-console.log('PASS: distinct 2026/1997 Pikachu cards and stats, 42 shared Legacy moves, Surfing exclusivity, catalog refresh, saves, per-format migration and undo.');
+
+// Every original/modern overlap must remain an independent character choice.
+assert.equal(run('DATA.order.filter(n=>CHRONICLE_DB.pokemon[n]).length'),0);
+for (const [name,modernCode,originalCode,weakness,evolutionCode,target] of [
+  ['Bulbasaur','STC01-001','OGC07-001','fire','OGW51-001','Ivysaur'],
+  ['Squirtle','STC03-001','OGC06-001','lightning','OGW50-001','Wartortle'],
+]) {
+  const original=name+' (1997)', originalJS=JSON.stringify(original), nameJS=JSON.stringify(name);
+  const versionApp=boot(), check=versionApp.run;
+  assert.equal(check(`pokemonLabel(${nameJS})`),name+' (2026)');
+  assert.equal(check(`getPokemonBlock(${nameJS}).pokemon.code`),modernCode);
+  assert(!check(`DATA.order.includes(${originalJS})`));
+  check('chronicleMode=true');
+  assert(check(`allChronicleNames().includes(${originalJS})&&allChronicleNames().includes(${nameJS})`));
+  assert.equal(check(`getPokemonBlock(${nameJS}).pokemon.code`),modernCode);
+  assert.equal(check(`getPokemonBlock(${originalJS}).pokemon.code`),originalCode);
+  assert.equal(check(`pokemonMeta(${nameJS}).weakness`),weakness);
+  assert.equal(check(`pokemonMeta(${originalJS}).weakness`),'');
+  assert.equal(check(`JSON.stringify(movesForPokemon(${nameJS}).map(m=>m.code).sort())`),check(`JSON.stringify(movesForPokemon(${originalJS}).map(m=>m.code).sort())`));
+  check(`
+    players=[${nameJS},${originalJS}].map(pokemon=>({pokemon,moves:movesForPokemon(pokemon).filter(m=>!m.action&&!m.special).slice(0,4),evolutionLoadouts:[]}));
+    battle=makeBattleState(players.map((p,i)=>freshFighter(p,i)),'single',true);
+    const typeAttack=ALL_MOVES.find(m=>m.type===${JSON.stringify(weakness)}&&m.baseDamage>0&&!m.effect.includes("isn't affected by Weakness"));
+    const attacker=freshFighter({pokemon:'Mew',moves:[],evolutionLoadouts:[]},0);
+  `);
+  assert(check('players.every(isComplete)'));
+  assert.equal(check('baseAttackDamage(attacker,battle.fighters[0],typeAttack)-baseAttackDamage(attacker,battle.fighters[1],typeAttack)'),20,'Use the selected edition’s printed weakness in battle');
+  for(const choice of [nameJS,originalJS]) {
+    check(`var evolutionBuild={pokemon:${choice},moves:[ALL_MOVES.find(m=>m.code===${JSON.stringify(evolutionCode)})],evolutionLoadouts:[]};syncEvolutionLoadouts(evolutionBuild)`);
+    assert.equal(check('evolutionBuild.evolutionLoadouts[0].pokemon'),target);
+  }
+  check('saveBuilds();saveBattle();applyModernCatalog(PLAKORO_BUNDLE)');
+  assert.equal(check(`getPokemonBlock(${nameJS}).pokemon.code`),modernCode);
+  assert.equal(check(`getPokemonBlock(${originalJS}).pokemon.code`),originalCode);
+  const reload=boot(new Map(versionApp.saved));reload.run('loadBuilds();loadBattle()');
+  assert.equal(reload.run('players[0].pokemon'),name);
+  assert.equal(reload.run('players[1].pokemon'),original);
+  assert.equal(reload.run('battle.fighters[0].pokemon'),name);
+  assert.equal(reload.run('battle.fighters[1].loadouts[0].pokemon'),original);
+  assert.equal(reload.run('fighterMeta(battle.fighters[0]).weakness'),weakness);
+  assert.equal(reload.run('fighterMeta(battle.fighters[1]).weakness'),'');
+}
+
+// Version 1 already separated Pikachu; do not turn a selected 2026 Pikachu into 1997.
+for (const version of [0,1]) {
+  const legacy=boot();legacy.run(`
+    chronicleMode=true;
+    players=['Bulbasaur','Squirtle'].map(pokemon=>({pokemon,moves:movesForPokemon(pokemon).filter(m=>!m.action&&!m.special).slice(0,4),evolutionLoadouts:[]}));
+    battle=makeBattleState(players.map((p,i)=>freshFighter(p,i)),'single',true);
+    saveBuilds();saveBattle();
+  `);
+  const builds=JSON.parse(legacy.saved.get(buildKey));builds.pokemonChoicesVersion=version;
+  builds.formatSetups.double={players:[{pokemon:'Pikachu',moves:[],evolutionLoadouts:[]},...structuredClone(builds.players)],chronicleMode:true};
+  builds.formatSetups['league-single']={players:Array.from({length:12},(_,i)=>structuredClone(builds.players[i%2])),chronicleMode:true};
+  builds.formatSetups['league-double']={players:structuredClone(builds.players),chronicleMode:false};
+  legacy.saved.set(buildKey,JSON.stringify(builds));
+  const combat=JSON.parse(legacy.saved.get(battleKey));combat.pokemonChoicesVersion=version;combat.snapshot=structuredClone(combat);
+  legacy.saved.set(battleKey,JSON.stringify(combat));
+  const migrated=boot(new Map(legacy.saved));migrated.run('loadBuilds();loadBattle()');
+  assert.equal(migrated.run('players[0].pokemon'),'Bulbasaur (1997)');
+  assert.equal(migrated.run('players[1].pokemon'),'Squirtle (1997)');
+  assert.equal(migrated.run('formatSetups.double.players[0].pokemon'),version===0?'Pikachu (1997)':'Pikachu');
+  assert(migrated.run('formatSetups["league-single"].players.every(p=>p.pokemon.endsWith(" (1997)"))'));
+  assert.equal(migrated.run('formatSetups["league-double"].players[0].pokemon'),'Bulbasaur');
+  migrated.run('undoBattle()');
+  assert.equal(migrated.run('battle.fighters[0].loadouts[0].pokemon'),'Bulbasaur (1997)');
+  assert.equal(migrated.run('battle.fighters[1].pokemon'),'Squirtle (1997)');
+  migrated.run('players[0].pokemon="Bulbasaur";players[1].pokemon="Squirtle";saveBuilds()');
+  const later=boot(new Map(migrated.saved));later.run('loadBuilds()');
+  assert.equal(later.run('players[0].pokemon'),'Bulbasaur');
+  assert.equal(later.run('players[1].pokemon'),'Squirtle');
+  legacy.saved.set(run('CHRONICLE_KEY'),'0');combat.chronicle=false;combat.fighters.forEach(f=>f.chronicle=false);combat.snapshot=null;legacy.saved.set(battleKey,JSON.stringify(combat));
+  const modern=boot(new Map(legacy.saved));modern.run('loadBuilds();loadBattle()');
+  assert.equal(modern.run('players[0].pokemon'),'Bulbasaur');
+  assert.equal(modern.run('battle.fighters[1].pokemon'),'Squirtle');
+}
+console.log('PASS: separate 2026/1997 Pikachu, Bulbasaur and Squirtle cards/stats; shared moves, evolution, automatic updates, save/reload, versioned migration and undo.');

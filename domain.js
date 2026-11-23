@@ -1,11 +1,12 @@
 const CHRONICLE_KEY='plakoro-chronicle-mode-v1';
-const POKEMON_CHOICES_VERSION=1;
+const POKEMON_CHOICES_VERSION=2;
+const POKEMON_CHOICE_SPLITS={Pikachu:1,Bulbasaur:2,Squirtle:2};
 let chronicleMode=false;
 Object.entries(CHRONICLE_DB.pokemon).forEach(([n,b])=>{if(!DATA.pokemon[n])DATA.pokemon[n]=b});
 Object.entries(CHRONICLE_DB.pokemon).forEach(([n,b])=>{if(!POKEMON_META[n])POKEMON_META[n]={hp:b.pokemon.hp||120,type:b.pokemon.type||'normal',weakness:b.pokemon.weakness||''}});
 function allChronicleNames(){return Array.from(new Set([...DATA.order,...CHRONICLE_DB.order]))}
 function isChronicleOnlyPokemon(name){return CHRONICLE_DB.order.includes(name)}
-function pokemonLabel(name){return name==='Pikachu'?'Pikachu (2026)':name}
+function pokemonLabel(name){return CHRONICLE_DB.pokemon[name+' (1997)']?name+' (2026)':name}
 function getPokemonBlock(name,legacy=chronicleMode){return (legacy?CHRONICLE_DB.pokemon[name]:null)||DATA.pokemon[name]||CHRONICLE_DB.pokemon[name]}
 function pokemonMeta(name,legacy=chronicleMode){return (legacy?CHRONICLE_DB.pokemon[name]?.pokemon:null)||POKEMON_META[name]||{hp:120,type:'normal',weakness:''}}
 function cleanMoveName(name){return name==null?name:String(name).replace(/[?？]/g,'').replace(/\s+/g,' ').trim()}
@@ -156,10 +157,10 @@ function formatDefinition(format=battleFormat){return BATTLE_FORMATS[format]||BA
 function slotLabel(index,format=battleFormat){return formatDefinition(format).units[index]?.label||`Player ${index+1}`}
 function isRoyaleFormat(format=battleFormat){return format==='royale3'||format==='royale4'}
 function fighterLabel(f){return f?.label||`Player ${(f?.playerIndex||0)+1}`}
-function migrateLegacyPikachuSelection(p){
+function migrateLegacyPokemonSelection(p,version){
  if(!p)return;
- if(p.pokemon==='Pikachu')p.pokemon='Pikachu (1997)';
- for(const l of [...(p.evolutionLoadouts||[]),...(p.loadouts||[])])migrateLegacyPikachuSelection(l);
+ if(version<(POKEMON_CHOICE_SPLITS[p.pokemon]||0))p.pokemon+=' (1997)';
+ for(const l of [...(p.evolutionLoadouts||[]),...(p.loadouts||[])])migrateLegacyPokemonSelection(l,version);
 }
 function loadBuilds(){
  try{
@@ -167,10 +168,11 @@ function loadBuilds(){
   const saved=JSON.parse(localStorage.getItem(BUILD_KEY)||localStorage.getItem('plakoro-multiplayer-builds-v2')||'null');
   if(!saved||!Array.isArray(saved.players)||!saved.players.length)return;
   battleFormat=BATTLE_FORMATS[saved.battleFormat]?saved.battleFormat:inferFormat(saved.players.length);
-  // Before the choices were split, every saved Legacy Pikachu used the 1997 card.
+  // Retain the original card in saves from before each species' choices were split.
   if((saved.pokemonChoicesVersion||0)<POKEMON_CHOICES_VERSION){
-   if(chronicleMode)saved.players.forEach(migrateLegacyPikachuSelection);
-   for(const value of Object.values(saved.formatSetups||{}))if(value?.chronicleMode)value.players?.forEach(migrateLegacyPikachuSelection);
+   const migrate=p=>migrateLegacyPokemonSelection(p,saved.pokemonChoicesVersion||0);
+   if(chronicleMode)saved.players.forEach(migrate);
+   for(const value of Object.values(saved.formatSetups||{}))if(value?.chronicleMode)value.players?.forEach(migrate);
   }
   for(const [key,value] of Object.entries(saved.formatSetups||{}))if(BATTLE_FORMATS[key]&&Array.isArray(value?.players))formatSetups[key]=value;
   const count=formatDefinition().units.length;
@@ -297,7 +299,7 @@ function saveBattle(){try{if(battle)localStorage.setItem(BATTLE_KEY,JSON.stringi
 function normalizeBattleLoadouts(b){
  normalizeBattleFormat(b);
  if((b.pokemonChoicesVersion||0)<POKEMON_CHOICES_VERSION){
-  for(const f of b.fighters||[])if(f.chronicle??b.chronicle)migrateLegacyPikachuSelection(f);
+  for(const f of b.fighters||[])if(f.chronicle??b.chronicle)migrateLegacyPokemonSelection(f,b.pokemonChoicesVersion||0);
   b.pokemonChoicesVersion=POKEMON_CHOICES_VERSION;
  }
  if(b.snapshot)normalizeBattleLoadouts(b.snapshot);

@@ -21,7 +21,7 @@ const snapshot=JSON.parse(fs.readFileSync(path.join(__dirname,'chronicle-source.
 assert.equal(snapshot.cards.length,200);
 assert.equal(run('Object.keys(CHRONICLE_DB.pokemon).length'),15);
 assert.equal(run('Object.values(CHRONICLE_DB.movePools).flat().length'),184);
-assert.equal(run('allChronicleNames().length'),36);
+assert.equal(run('allChronicleNames().length'),38);
 assert.equal(run('CHRONICLE_DB.checked'),'2026-11-22');
 assert.equal(run('ALL_MOVES.filter(m=>/[?？]/.test(m.name)||/^RE/.test(m.code)).length'),0);
 for(const item of snapshot.cards){
@@ -34,9 +34,9 @@ for(const name of ['Charmander','Squirtle']){
  assert.equal(run(`JSON.stringify(movesForPokemon('${name}').map(m=>m.code).sort())`),run(`JSON.stringify(movesForPokemon('Strong ${name}').map(m=>m.code).sort())`));
  assert.equal(run(`getPokemonBlock('Strong ${name}').pokemon.type`),name==='Charmander'?'fire':'water');
 }
-assert.equal(run('getPokemonBlock("Squirtle").pokemon.code'),'OGC06-001');
-assert.equal(run('pokemonMeta("Squirtle").weakness'),'');
-assert.equal(run('pokemonMeta("Bulbasaur").name'),'Bulbasaur','Source spelling is matched to the existing species');
+assert.equal(run('getPokemonBlock("Squirtle (1997)").pokemon.code'),'OGC06-001');
+assert.equal(run('pokemonMeta("Squirtle (1997)").weakness'),'');
+assert.equal(run('pokemonMeta("Bulbasaur (1997)").species'),'Bulbasaur','Source spelling is matched to the existing species');
 run('chronicleMode=false');
 assert.equal(run('getPokemonBlock("Squirtle").pokemon.code'),'STC03-001');
 assert.equal(run('pokemonMeta("Squirtle").weakness'),'lightning');

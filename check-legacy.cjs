@@ -43,7 +43,7 @@ assert(run('movesForPokemon("Pikachu").find(m=>m.code==="OGW37-001")===ALL_MOVES
 run(`
   const normalFighter = freshFighter({pokemon:'Pikachu',moves:[],evolutionLoadouts:[]},0);
   const strongFighter = freshFighter({pokemon:'Strong Pikachu',moves:[],evolutionLoadouts:[]},0);
-  const targetFighter = freshFighter({pokemon:'Squirtle',moves:[],evolutionLoadouts:[]},1);
+  const targetFighter = freshFighter({pokemon:'Squirtle (1997)',moves:[],evolutionLoadouts:[]},1);
   const strongBite = movesForPokemon('Pikachu').find(m=>m.code==='OGW37-001');
   const normalGnaw = movesForPokemon('Strong Pikachu').find(m=>m.code==='STW04-001');
 `);

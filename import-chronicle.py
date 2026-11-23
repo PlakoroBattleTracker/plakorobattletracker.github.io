@@ -94,7 +94,7 @@ def main():
             if hp < 30:
                 hp *= 10
             n = name(d['mon_name'])
-            choice = 'Pikachu (1997)' if n == 'Pikachu' else n
+            choice = f'{n} (1997)' if n in data['order'] else n
             characters[choice] = dict(pokemon=dict(name=choice, species=n, code=code, hp=hp,
                 type=TYPES[int(d['type'])], weakness=TYPES[int(d['weakness'])] if d.get('weakness_visible', True) else '',
                 image='chronicle/' + code + '.png', source='1997', sourceUrl=item['url'], sourcePath=item['path']), moves=[])
