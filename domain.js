@@ -37,20 +37,31 @@ function movesForPokemon(name,isEvolutionLoadout=false){
  return out;
 }
 function hasTrigger(loadout){return (loadout?.moves||[]).map(hydrateMove).find(m=>m.action==='evolve')||null}
-function eeveeEvolutionTargets(p){return p.pokemon==='Eevee'?(hasTrigger(p)?.targets||[]):[]}
+function isEevee(name){return legacyNameKey(name)==='eevee'}
+function isEeveeDevolve(move){const m=hydrateMove(move);return m?.action==='devolve'&&m.targets?.some(isEevee)}
+function eeveeEvolutionTargets(p){return isEevee(p?.pokemon)?(hasTrigger(p)?.targets||[]):[]}
 function allowsEeveeAlternates(p){
  const targets=eeveeEvolutionTargets(p),loads=p.evolutionLoadouts||[];
- return targets.includes(loads[0]?.pokemon)&&loads.some(l=>targets.includes(l.pokemon)&&(l.moves||[]).some(m=>hydrateMove(m)?.action==='devolve'&&hydrateMove(m).targets?.includes('Eevee')));
+ return targets.includes(loads[0]?.pokemon)&&loads.some(l=>targets.includes(l.pokemon)&&(l.moves||[]).some(isEeveeDevolve));
 }
 function availableEeveeForms(p,l){
  const used=new Set((p.evolutionLoadouts||[]).filter(x=>x!==l).map(x=>x.pokemon));
  return eeveeEvolutionTargets(p).filter(name=>!used.has(name));
 }
+function appendEeveeAlternate(p){
+ syncEvolutionLoadouts(p);
+ if(!allowsEeveeAlternates(p)||p.evolutionLoadouts.length>=3)return -1;
+ const loadout={kind:'eevee-alternate',pokemon:null,moves:[]};
+ p.evolutionLoadouts.push(loadout);syncEvolutionLoadouts(p);
+ return p.evolutionLoadouts.indexOf(loadout);
+}
+function nextEeveeAlternate(p,currentIndex){
+ if(!allowsEeveeAlternates(p))return -1;
+ const existing=p.evolutionLoadouts.findIndex((l,i)=>i>0&&i!==currentIndex&&!isLoadoutComplete(l));
+ return existing>=0?existing:appendEeveeAlternate(p);
+}
 function addEeveeAlternate(){
- const p=cur();syncEvolutionLoadouts(p);
- if(!allowsEeveeAlternates(p)||p.evolutionLoadouts.length>=3)return;
- p.evolutionLoadouts.push({kind:'eevee-alternate',pokemon:null,moves:[]});
- const index=p.evolutionLoadouts.length-1;
+ const index=appendEeveeAlternate(cur());if(index<0)return;
  tableView=false;renderBuilder();
  const section=$('evolutionLoadout'+index);
  section?.focus({preventScroll:true});
@@ -305,8 +316,8 @@ function normalizeBattleLoadouts(b){
  if(b.snapshot)normalizeBattleLoadouts(b.snapshot);
  for(const f of b.fighters||[]){f.lastMove=cleanMoveName(f.lastMove);f.bannedMoves=(f.bannedMoves||[]).map(cleanMoveName);f.moves=f.moves.map(hydrateMove);f.loadouts?.forEach(l=>l.moves=l.moves.map(hydrateMove));}
  for(const f of b.fighters||[]){
-  const root=f.loadouts?.[0];if(root?.pokemon!=='Eevee')continue;
-  const allowed=hasTrigger(root)?.targets||[],seen=new Set(['Eevee']),loads=[root];
+  const root=f.loadouts?.[0];if(!isEevee(root?.pokemon))continue;
+  const allowed=hasTrigger(root)?.targets||[],seen=new Set([root.pokemon]),loads=[root];
   for(const l of f.loadouts.slice(1)){
    if(!allowed.includes(l.pokemon)||seen.has(l.pokemon))continue;
    loads.push(l);seen.add(l.pokemon);
@@ -315,7 +326,7 @@ function normalizeBattleLoadouts(b){
   if(index<0)continue;
   const changed=loads.length!==f.loadouts.length;
   f.loadouts=loads;f.loadoutIndex=index;f.moves=loads[index].moves.map(hydrateMove);
-  if(changed&&f.pokemon==='Eevee'&&b.turnIndex===f.playerIndex)b.selectedMove=null;
+  if(changed&&isEevee(f.pokemon)&&b.turnIndex===f.playerIndex)b.selectedMove=null;
  }
  return b;
 }
@@ -327,9 +338,12 @@ function fighterMeta(f){return pokemonMeta(f.pokemon,f.chronicle??battle?.chroni
 function moveMeta(f,m){if(m&&m.chronicle){const ec=m.energyCost||{};const type=Object.keys(ec).find(k=>k!=='normal'&&Number(ec[k])>0)||fighterMeta(f).type;return{damage:(Number(m.damage)||0)*10,type}}return MOVE_META[f.pokemon+'|'+m.name]||{damage:0,type:fighterMeta(f).type}}
 function transitionChoices(f,m){
  if(!m?.action||!Array.isArray(f.loadouts))return [];
+ // Devolve returns to the Eevee that owns this build, regardless of which
+ // Eevee edition the shared original move card names as its target.
+ if(isEeveeDevolve(m)&&isEevee(f.loadouts[0]?.pokemon))return f.loadoutIndex!==0&&isLoadoutComplete(f.loadouts[0])?[0]:[];
  const matches=f.loadouts.map((l,i)=>({l,i})).filter(({l,i})=>i!==f.loadoutIndex&&m.targets?.includes(l.pokemon)&&isLoadoutComplete(l));
  if(m.action==='devolve')return matches.length?[matches[0].i]:[];
- if(f.pokemon==='Eevee'){
+ if(isEevee(f.pokemon)){
   const seen=new Set();return matches.filter(({l})=>{if(seen.has(l.pokemon))return false;seen.add(l.pokemon);return true}).map(({i})=>i);
  }
  const next=(f.loadoutIndex||0)+1;return matches.some(({i})=>i===next)?[next]:[];

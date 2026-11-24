@@ -16,7 +16,9 @@ Saved battles and loadouts stay in the browser where they were created. Saves on
 
 Enable Chronicle during setup for Legacy rules. Pikachu, Bulbasaur, and Squirtle each have separate 2026 and 1997 choices with their respective artwork and printed stats. Each species shares its move pool across both editions in Legacy. Saves made before a species was split retain the card they previously used; later saves preserve the selected edition. Normal, Strong, and Legendary versions of the same Pokémon share move cards in both directions. Pikachu can select Strong Pikachu cards, and Strong Pikachu can select Pikachu cards. Cards retain their original artwork, names, effects, and identifiers.
 
-Surfing Pikachu can use every other Pikachu version’s move cards, while Surfing Pikachu cards remain exclusive to Surfing Pikachu. Evolution stages remain separate, and Devolve remains restricted to evolution loadouts. Modern mode retains each Pokémon’s own modern move pool.
+Surfing Pikachu can use every other Pikachu version’s move cards, while Surfing Pikachu cards remain exclusive to Surfing Pikachu. Evolution stages remain separate, and Devolve remains restricted to evolution loadouts. Selecting Devolve for Flareon, Jolteon, or Vaporeon in an Eevee build opens the next evolution loadout automatically, with up to three different evolution forms total. An unfinished alternate is reopened instead of duplicated, and Devolve returns to the original Eevee and its selected moves. Both 2026 and 1997 Eevee choices are supported. Modern mode retains each Pokémon’s own modern move pool.
+
+Run `node check-eevee-devolve.cjs` to validate automatic alternate loadout opening, Eevee edition compatibility, saved builds and battle transitions.
 
 Run `python3 build-site.py`, `node check-card-refresh.cjs`, `node check-legacy.cjs`, `node check-pikachu-versions.cjs`, and `node check-league.mjs` to validate move sharing, form restrictions, saved loadouts, and shared-card battle effects.
 

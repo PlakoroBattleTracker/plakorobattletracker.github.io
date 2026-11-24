@@ -132,9 +132,20 @@ stage.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(
  case 'loadout':ui.loadout=index;ui.search='';ui.modal=editLoadout().pokemon?'moves':'pokemon';render();break;
  case 'change-pokemon':ui.modal='pokemon';ui.search='';render();break;
  case 'pick-pokemon':{const l=editLoadout();if(l.pokemon!==value){l.pokemon=value;l.moves=[]}syncEvolutionLoadouts(cur());ui.modal=isLeagueFormat()&&leagueSetup.phase==='party'?null:'moves';saveBuilds();render();break}
- case 'pick-move':{const l=editLoadout(),m=movesForPokemon(l.pokemon,ui.loadout>=0)[index],found=l.moves.findIndex(x=>moveId(x)===moveId(m));if(found>=0)l.moves.splice(found,1);else if(l.moves.length<4&&(!m.special||!l.moves.some(x=>canonical(x).special)))l.moves.push(m);syncEvolutionLoadouts(cur());saveBuilds();const y=$('pickerScroll').scrollTop;render();$('pickerScroll').scrollTop=y;break}
+ case 'pick-move':{
+  const p=cur(),l=editLoadout(),from=ui.loadout,m=movesForPokemon(l.pokemon,from>=0)[index],found=l.moves.findIndex(x=>moveId(x)===moveId(m));
+  let added=false,y=$('pickerScroll').scrollTop;
+  if(found>=0)l.moves.splice(found,1);else if(l.moves.length<4&&(!m.special||!l.moves.some(x=>canonical(x).special))){l.moves.push(m);added=true;}
+  syncEvolutionLoadouts(p);
+  if(added&&from>=0&&isEeveeDevolve(m)){
+   const next=nextEeveeAlternate(p,from);
+   if(next>=0){ui.loadout=next;ui.modal=editLoadout().pokemon?'moves':'pokemon';ui.search='';y=0;}
+  }
+  if(ui.loadout>=p.evolutionLoadouts.length){ui.loadout=p.evolutionLoadouts.length-1;ui.modal=editLoadout().pokemon?'moves':'pokemon';y=0;}
+  saveBuilds();render();$('pickerScroll').scrollTop=y;break;
+ }
  case 'confirm-moves':{syncEvolutionLoadouts(cur());const next=cur().evolutionLoadouts.findIndex(l=>!isLoadoutComplete(l));if(next>=0){ui.loadout=next;ui.modal=editLoadout().pokemon?'moves':'pokemon'}else ui.modal=null;saveBuilds();render();break}
- case 'add-evolution':{const p=cur();if(allowsEeveeAlternates(p)&&p.evolutionLoadouts.length<3){p.evolutionLoadouts.push({kind:'eevee-alternate',pokemon:null,moves:[]});syncEvolutionLoadouts(p);ui.loadout=p.evolutionLoadouts.length-1;ui.modal=editLoadout().pokemon?'moves':'pokemon';ui.search='';saveBuilds();render()}break}
+ case 'add-evolution':{const next=appendEeveeAlternate(cur());if(next>=0){ui.loadout=next;ui.modal=editLoadout().pokemon?'moves':'pokemon';ui.search='';saveBuilds();render()}break}
  case 'remove-loadout':{if(editLoadout()?.kind==='eevee-alternate'){cur().evolutionLoadouts.splice(ui.loadout,1);ui.loadout=0;ui.modal='moves';saveBuilds();render()}break}
  case 'close-picker':ui.modal=null;saveBuilds();render();break;
  case 'start-first':if(!setupError()){battle=null;cardUpdater?.maybeApply();window.ChronicleSync?.maybeApply();battle=newBattle();startFirst(index)}break;
