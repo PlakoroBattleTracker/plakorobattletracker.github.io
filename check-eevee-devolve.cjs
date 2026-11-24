@@ -55,6 +55,9 @@ for(const [root,target]of [['Eevee','Eevee'],['Eevee','Eevee (1997)'],['Eevee (1
  run('saveBattle();battle=null;loadBattle()');assert.equal(run('battle.fighters[0].loadouts.length'),4);
 }
 
+// Searching for Eevee must not hide the evolution choices after confirmation.
+const searched=boot();searched.setup('Flareon');searched.run("cur().evolutionLoadouts=[{pokemon:null,moves:[]}];ui.loadout=-1;ui.search='Eevee'");searched.click('confirm-moves');assert.equal(searched.run('ui.search'),'');assert(searched.stage.innerHTML.includes('data-value="Flareon"'));
+
 // Full move slots must not create a form when Devolve was not accepted.
 let b=boot();b.setup('Flareon');b.click('pick-move',b.run("movesForPokemon('Flareon',true).findIndex(m=>!m.action&&!m.special&&!editLoadout().moves.includes(m))"));b.pickDevolve();assert.equal(b.run('cur().evolutionLoadouts.length'),1);
 // Reuse an unfinished alternate. Removing the last Devolve safely returns

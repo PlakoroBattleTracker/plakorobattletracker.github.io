@@ -144,7 +144,7 @@ stage.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(
   if(ui.loadout>=p.evolutionLoadouts.length){ui.loadout=p.evolutionLoadouts.length-1;ui.modal=editLoadout().pokemon?'moves':'pokemon';y=0;}
   saveBuilds();render();$('pickerScroll').scrollTop=y;break;
  }
- case 'confirm-moves':{syncEvolutionLoadouts(cur());const next=cur().evolutionLoadouts.findIndex(l=>!isLoadoutComplete(l));if(next>=0){ui.loadout=next;ui.modal=editLoadout().pokemon?'moves':'pokemon'}else ui.modal=null;saveBuilds();render();break}
+ case 'confirm-moves':{syncEvolutionLoadouts(cur());const next=cur().evolutionLoadouts.findIndex(l=>!isLoadoutComplete(l));if(next>=0){ui.loadout=next;ui.search='';ui.modal=editLoadout().pokemon?'moves':'pokemon'}else ui.modal=null;saveBuilds();render();break}
  case 'add-evolution':{const next=appendEeveeAlternate(cur());if(next>=0){ui.loadout=next;ui.modal=editLoadout().pokemon?'moves':'pokemon';ui.search='';saveBuilds();render()}break}
  case 'remove-loadout':{if(editLoadout()?.kind==='eevee-alternate'){cur().evolutionLoadouts.splice(ui.loadout,1);ui.loadout=0;ui.modal='moves';saveBuilds();render()}break}
  case 'close-picker':ui.modal=null;saveBuilds();render();break;
