@@ -30,7 +30,7 @@ The website refreshes both PlakoroDB and the public Chronicle Drive feed in GitH
 
 Each visit checks the same-origin `published-catalogue.json` without browser caching before loading saved builds. A versioned bootstrap snapshot is the fallback if the network check fails. Open sessions check the publication every five minutes and when returning/reconnecting. New snapshots wait until an active battle or loadout closes. Saved loadouts keep stable card identifiers, and 2026/1997 choices remain separate.
 
-The workflow records the verified source revisions and card counts in `card-sync-status.json` after deployment. This daily audit keeps the public repository active so GitHub's 60-day inactivity rule does not silently stop the schedule. It uses only the repository's existing Actions token; visitors need no account credentials.
+The workflow has read-only access to repository contents and permission to publish Pages. GitHub can disable scheduled workflows after 60 days without repository activity; re-enable the workflow in Actions if that happens. Source revisions, check time and card counts are recorded in the build log and published catalogue. Visitors need no account credentials.
 
 Run `node check-published-updates.cjs` for publication validation, first-visit freshness, deferred updates, offline/stale-response fallback, saved builds, and edition separation. `node check-auto-updates.cjs` covers the original portable/offline updater and Chronicle conversion parity. Portable builds without a published catalogue retain their own source checks and IndexedDB storage.
 
