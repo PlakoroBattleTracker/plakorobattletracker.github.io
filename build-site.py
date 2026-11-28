@@ -12,7 +12,7 @@ RUNTIME = (
     "index.html", "rules.html", "style.css", "data.js", "domain.js", "engine.js",
     "league.js", "plakorodb-source.js", "card-updates.js", "app.js",
     "card-cache.js", "chronicle-og.js", "chronicle-source.js", "chronicle-config.js",
-    "chronicle-bundle.js", "chronicle-sync.js",
+    "chronicle-bundle.js", "chronicle-sync.js", "published-updates.js", "published-catalogue.js",
 )
 
 def build():

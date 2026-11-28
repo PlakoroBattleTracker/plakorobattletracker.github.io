@@ -24,19 +24,19 @@ Run `python3 build-site.py`, `node check-card-refresh.cjs`, `node check-legacy.c
 
 ## Automatic card updates
 
-The tracker checks PlakoroDB and the same public Chronicle Drive feed as the Pokédex on opening, returning to the app, and reconnecting. While visible, PlakoroDB checks every 15 minutes and Chronicle every 30 minutes. Failed network checks retry after one minute. The menu shows progress and provides a manual check.
+The website refreshes both PlakoroDB and the public Chronicle Drive feed in GitHub Actions every 30 minutes (at :07 and :37 UTC), on source pushes, and on manual workflow runs. GitHub may delay scheduled jobs. Visitors receive one complete published catalogue and its original PNG images; they do not need to keep a browser open to scan Drive. The menu shows the current publication time and card totals.
 
-Chronicle uses OG cards only. Its typed .koro metadata preserves printed damage, dice requirements, effects, and evolution targets. The shared public feed supplies only card metadata and original PNG artwork; no account credentials are included. Downloads validate the catalogue and image hashes before installing a complete snapshot. Chronicle downloads resume from saved progress after the app closes. Updates wait for an open battle or loadout to close.
+`refresh-site-cards.cjs` pins PlakoroDB to a commit, finishes the resumable Chronicle scan, validates typed battle metadata, and verifies every original PNG against its source checksum. Only OG Chronicle cards are published. A failed source check or incomplete upload stops deployment, leaving the last successful website online. Verified images are reused through the Actions cache; image URLs contain their content hash, and older verified images remain available for already-open battles.
 
-Downloaded cards are stored in IndexedDB for offline use, with chunked Chronicle images for mobile browsers. If offline storage is unavailable, a verified update can still be used during the current session. Saved loadouts keep stable image paths, and modern/original Pokémon remain separate choices.
+Each visit checks the same-origin `published-catalogue.json` without browser caching before loading saved builds. A versioned bootstrap snapshot is the fallback if the network check fails. Open sessions check the publication every five minutes and when returning/reconnecting. New snapshots wait until an active battle or loadout closes. Saved loadouts keep stable card identifiers, and 2026/1997 choices remain separate.
 
-Run `node check-auto-updates.cjs` for conversion parity, OG filtering, preserved selections, update timing, deferred application, image verification, incomplete-download recovery, and storage failure coverage.
+The workflow records the verified source revisions and card counts in `card-sync-status.json` after deployment. This daily audit keeps the public repository active so GitHub's 60-day inactivity rule does not silently stop the schedule. It uses only the repository's existing Actions token; visitors need no account credentials.
+
+Run `node check-published-updates.cjs` for publication validation, first-visit freshness, deferred updates, offline/stale-response fallback, saved builds, and edition separation. `node check-auto-updates.cjs` covers the original portable/offline updater and Chronicle conversion parity. Portable builds without a published catalogue retain their own source checks and IndexedDB storage.
 
 ## Hosting
 
-GitHub Actions publishes the main branch to GitHub Pages automatically. The application source is at the repository root. Original card artwork is stored in the website-assets ZIP files to preserve its folder structure during browser uploads. The build-site.py script extracts and verifies every image against asset-manifest.json, applies verified card-update artwork archives, then assembles the static application in _site. No backend or account credentials are needed.
-
-To preview locally, run python3 build-site.py, then python3 -m http.server --directory _site 8000.
+GitHub Actions builds and publishes the main branch to GitHub Pages. `python3 build-site.py` extracts the verified offline asset archives into `_site`; `node refresh-site-cards.cjs` then prepares the current shared card publication. Deployment happens only after the complete catalogue and all images pass validation. Run both commands for a production build. Running only the first builds the bundled portable version.
 
 ## Credits
 
